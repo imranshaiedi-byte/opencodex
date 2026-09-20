@@ -1602,6 +1602,7 @@ export const EXPORT_CLIENTS: Record<ExportClientId, ExportClientSpec> = {
     summarize: summarizeKilo,
     buildContribution: buildKiloContribution,
     loopbackOnly: false,
+    jsonc: true,
   },
 };
 

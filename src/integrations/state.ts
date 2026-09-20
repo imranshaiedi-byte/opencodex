@@ -33,6 +33,8 @@ import {
 } from "./ownership-policy";
 import {
   INTEGRATION_CLIENTS,
+  boundIntegrationConfigPath,
+  boundIntegrationConfigPath,
   resolveIntegrationPaths,
   unresolvedPathHintFor,
   type IntegrationClientId,
@@ -530,12 +532,10 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
      * would let the badge and the switch disagree.
      */
     record = store.readRecords()[input.clientId] ?? null;
-    const recordedPath = record?.clientId === input.clientId
-      && record.configPath !== paths.configPath
-      && io.statKind(record.configPath) === "file"
-      && spec.bindsDriftedRecord?.(record.configPath, input.env, input.home) === true
-      ? record.configPath
-      : paths.configPath;
+    const recordedPath = boundIntegrationConfigPath({
+      clientId: input.clientId, record, resolvedPath: paths.configPath,
+      statKind: io.statKind, env: input.env, home: input.home,
+    });
     effective = resolveIntegrationTarget({
       clientId: input.clientId, configPath: recordedPath, io, record, env: input.env, home: input.home,
     });
@@ -578,7 +578,7 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
 
   const parsed = input.clientId === "cline"
     ? parseClineDocument(loaded.before)
-    : parseConfig(loaded.before, effective.format, input.clientId === "kilo" ? { jsonc: true } : undefined);
+    : parseConfig(loaded.before, effective.format, EXPORT_CLIENTS[input.clientId].jsonc ? { jsonc: true } : undefined);
   const contribution = effective.buildContribution(exportContextOf(input));
   const { state, reason } = classifyIntegration({
     fileText: loaded.before,

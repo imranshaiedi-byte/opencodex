@@ -26,6 +26,7 @@ import { parseClineDocument } from "./cline-document";
 import { PARSE_FAILED, defaultIntegrationIO, loadTarget, parseConfig, type IntegrationIO } from "./config-io";
 import {
   INTEGRATION_CLIENTS,
+  boundIntegrationConfigPath,
   isLoopbackOnly,
   resolveIntegrationPaths,
   type IntegrationClientId,
@@ -744,7 +745,7 @@ function previewRestore(input: IntegrationWriteInput, request: PreviewRequest): 
       ? {}
       : observed.clientId === "cline"
         ? parseClineDocument(observed.before)
-        : parseConfig(observed.before, observed.format, observed.clientId === "kilo" ? { jsonc: true } : undefined),
+        : parseConfig(observed.before, observed.format, EXPORT_CLIENTS[observed.clientId].jsonc ? { jsonc: true } : undefined),
     restore: {
       opId: observed.entry.opId,
       entry: observed.entry,
@@ -851,12 +852,10 @@ export function observeIntegration(input: IntegrationWriteInput, effects: Observ
      * target is known, because that is the path it has to match.
      */
     stored = store.readRecords()[clientId] ?? null;
-    const recordedPath = stored?.clientId === clientId
-      && stored.configPath !== resolved.configPath
-      && io.statKind(stored.configPath) === "file"
-      && spec.bindsDriftedRecord?.(stored.configPath, input.env, input.home) === true
-      ? stored.configPath
-      : resolved.configPath;
+    const recordedPath = boundIntegrationConfigPath({
+      clientId, record: stored, resolvedPath: resolved.configPath,
+      statKind: io.statKind, env: input.env, home: input.home,
+    });
     /*
      * Inside the same guard as resolution, because this resolver can refuse the
      * same way: the store is named by a client env var, and a relative one is a
@@ -889,7 +888,7 @@ export function observeIntegration(input: IntegrationWriteInput, effects: Observ
   const before = loaded.before;
   const parsed = clientId === "cline"
     ? parseClineDocument(before)
-    : parseConfig(before, effective.format, clientId === "kilo" ? { jsonc: true } : undefined);
+    : parseConfig(before, effective.format, exportSpec.jsonc ? { jsonc: true } : undefined);
   if (parsed === PARSE_FAILED) {
     return { failed: observationFailure("unsafe", "unsafe",
       `${configPath} could not be parsed, or holds something opencodex cannot rewrite without changing it (a non-finite number, a large integer or a tiny one a rewrite would round, -0, a duplicate member, or nesting deeper than 1000 levels)`) } as const;
