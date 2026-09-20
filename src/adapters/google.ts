@@ -15,6 +15,8 @@ import type {
   OcxUsage,
 } from "../types";
 import { isAllowedToolChoice, namespacedToolName, resolveToolChoiceWireName, toolChoiceToolPredicate } from "../types";
+import type { OcxTool } from "../types";
+import { assertToolCallerRestrictionsRepresentable } from "./tool-declaration-constraints";
 import { contentPartsToText, parseDataUrl } from "./image";
 import { getVertexAccessToken } from "../lib/gcp-adc";
 import { fetchAntigravityWithRetry, fetchVertexWithRetry } from "./google-http";
@@ -465,10 +467,9 @@ function messagesToGeminiFormat(
 
 function toolsToGeminiFormat(parsed: OcxParsedRequest): unknown[] | undefined {
   if (!parsed.context.tools?.length) return undefined;
-  const tools = isAllowedToolChoice(parsed.options.toolChoice)
-    ? parsed.context.tools.filter(toolChoiceToolPredicate(parsed.options.toolChoice, parsed.context.tools))
-    : parsed.context.tools;
+  const tools = advertisedGeminiTools(parsed);
   if (tools.length === 0) return undefined;
+  assertToolCallerRestrictionsRepresentable(tools, "the Gemini generateContent wire");
   return [{
     functionDeclarations: tools.map(t => ({
       name: namespacedToolName(t.namespace, t.name),
@@ -478,19 +479,37 @@ function toolsToGeminiFormat(parsed: OcxParsedRequest): unknown[] | undefined {
   }];
 }
 
+/** The declarations this request actually advertises, after any allowed-tools filter. */
+function advertisedGeminiTools(parsed: OcxParsedRequest): readonly OcxTool[] {
+  const declared = parsed.context.tools ?? [];
+  return isAllowedToolChoice(parsed.options.toolChoice)
+    ? declared.filter(toolChoiceToolPredicate(parsed.options.toolChoice, declared))
+    : declared;
+}
+
 /**
  * Client tool_choice enforcement on the wire. The catalog nudge states the same contract in
  * prose, but without functionCallingConfig the model is free to ignore it. "auto" stays absent
  * so the common case is byte-identical. The allowedTools variant already filters the
  * declarations in toolsToGeminiFormat; only its "required" half needs a wire mode.
+ *
+ * A caller that declares strict tools is asking for its argument schemas to be enforced, and
+ * Gemini expresses that as VALIDATED. The mode existed and was plumbed end to end, but was only
+ * ever reachable by matching a model name, so a strict declaration arrived as an ordinary
+ * unvalidated AUTO turn and the response looked the same either way (#5210). VALIDATED replaces
+ * AUTO only: ANY and NONE are stronger constraints the caller asked for explicitly, and
+ * overwriting either of them would lose the choice this function exists to enforce.
  */
 function toolChoiceToGeminiToolConfig(parsed: OcxParsedRequest): Record<string, unknown> | undefined {
   const choice = parsed.options.toolChoice;
-  if (!choice || choice === "auto") return undefined;
+  const validated = advertisedGeminiTools(parsed).some(t => t.strict === true)
+    ? { functionCallingConfig: { mode: "VALIDATED" } }
+    : undefined;
+  if (!choice || choice === "auto") return validated;
   if (choice === "none") return { functionCallingConfig: { mode: "NONE" } };
   if (choice === "required") return { functionCallingConfig: { mode: "ANY" } };
   if (isAllowedToolChoice(choice)) {
-    return choice.mode === "required" ? { functionCallingConfig: { mode: "ANY" } } : undefined;
+    return choice.mode === "required" ? { functionCallingConfig: { mode: "ANY" } } : validated;
   }
   return {
     functionCallingConfig: {

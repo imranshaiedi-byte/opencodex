@@ -1400,6 +1400,8 @@
   "codex-shim-destroyed-probe.test.ts": "codex-integration",
   "client-runtime.test.ts": "clients",
   "chat-tool-choice-allowed-tools.test.ts": "responses",
+  "anthropic-tool-declaration-constraints.test.ts": "adapters/anthropic",
+  "google-strict-tool-validated-mode.test.ts": "adapters/google",
   "devin-output-budget.test.ts": "providers",
   "api-key-model-scope.test.ts": "server"
 }

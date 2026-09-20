@@ -4,6 +4,7 @@ import { isXaiSchemaTarget, lookupLocalJsonPointer, normalizeXaiToolParameters }
 import { stripResponsesOnlyEncryptedMarker, stripUnicodePropertyPatterns } from "../responses-tool-schema";
 import { isAllowedToolChoice, resolveToolChoiceWireName, toolChoiceToolPredicate } from "../../types";
 import type { OcxParsedRequest, OcxProviderConfig } from "../../types";
+import { assertToolCallerRestrictionsRepresentable } from "../tool-declaration-constraints";
 
 const ZEN_SCHEMA_MAP_KEYS = new Set(["properties", "$defs", "definitions"]);
 const ZEN_DROPPED_SCHEMA_KEYS = new Set(["encrypted"]);
@@ -418,6 +419,7 @@ export function toolsToChatFormat(
   if (!parsed.context.tools || parsed.context.tools.length === 0) return undefined;
   const tools = parsed.context.tools.filter(toolChoiceToolPredicate(parsed.options.toolChoice, parsed.context.tools));
   if (tools.length === 0) return undefined;
+  assertToolCallerRestrictionsRepresentable(tools, "the OpenAI Chat Completions wire");
   const xaiTarget = isXaiSchemaTarget(provider);
   const moonshotTarget = !xaiTarget && isMoonshotSchemaTarget(provider);
   const formatted = tools.flatMap(t => {
