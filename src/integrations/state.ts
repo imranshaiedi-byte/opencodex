@@ -507,6 +507,22 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
     const paths = input.resolvedPaths ?? resolveIntegrationPaths(input.clientId, input.env, input.home);
     configPath = paths.configPath;
     installed = io.statKind(paths.detectDir) === "dir";
+    /*
+     * Same binding as observeIntegration: while the client's
+     * `bindsDriftedRecord` accepts the recorded path (Kilo's first-existing
+     * candidates under the CURRENT env and home), status reports the owned
+     * file rather than a newcomer that won discovery after apply. A record
+     * from another home never binds and keeps its refusal contract.
+     */
+    const owned = store.readRecords()[input.clientId] ?? null;
+    if (
+      owned && owned.clientId === input.clientId &&
+      owned.configPath !== configPath &&
+      io.statKind(owned.configPath) === "file" &&
+      spec.bindsDriftedRecord?.(owned.configPath, input.env, input.home) === true
+    ) {
+      configPath = owned.configPath;
+    }
   } catch (error) {
     if (!(error instanceof ClientPathError)) throw error;
     /*

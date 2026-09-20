@@ -771,6 +771,25 @@ export function observeIntegration(input: IntegrationWriteInput, effects: Observ
     const resolved = input.resolvedPaths ?? resolveIntegrationPaths(clientId, input.env, input.home);
     configPath = resolved.configPath;
     detectDir = resolved.detectDir;
+    /*
+     * A record proves ownership of one file, and a client whose path resolves
+     * by first-EXISTING candidate (Kilo) can drift after apply: a candidate
+     * created later wins discovery while the owned file still holds our block.
+     * Unbound, disable would no-op against the newcomer and strand the block.
+     * While the client's own `bindsDriftedRecord` accepts the recorded path —
+     * it is one of this client's candidates under the CURRENT env and home —
+     * reads and mutations stay bound to that file. A record from another home
+     * never binds, so that refusal contract is untouched.
+     */
+    const owned = store.readRecords()[clientId] ?? null;
+    if (
+      owned && owned.clientId === clientId &&
+      owned.configPath !== configPath &&
+      io.statKind(owned.configPath) === "file" &&
+      spec.bindsDriftedRecord?.(owned.configPath, input.env, input.home) === true
+    ) {
+      configPath = owned.configPath;
+    }
     if (clientId === "cline") io = createClineIO(io, configPath, store, effects.recover);
   } catch (error) {
     if (error instanceof ClineTransactionError) {
