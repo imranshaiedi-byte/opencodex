@@ -24,6 +24,7 @@ import {
 } from "./ownership-policy";
 import {
   INTEGRATION_CLIENTS,
+  boundIntegrationConfigPath,
   resolveIntegrationPaths,
   unresolvedPathHintFor,
   type IntegrationClientId,
@@ -508,21 +509,19 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
     configPath = paths.configPath;
     installed = io.statKind(paths.detectDir) === "dir";
     /*
-     * Same binding as observeIntegration: while the client's
-     * `bindsDriftedRecord` accepts the recorded path (Kilo's first-existing
-     * candidates under the CURRENT env and home), status reports the owned
-     * file rather than a newcomer that won discovery after apply. A record
-     * from another home never binds and keeps its refusal contract.
+     * boundIntegrationConfigPath is the ONE binding shared with the mutation
+     * planner: while the client's own accepts-the-record rule holds, status
+     * reports the owned file rather than a newcomer that won discovery after
+     * apply (Kilo). A record from another home never binds.
      */
-    const owned = store.readRecords()[input.clientId] ?? null;
-    if (
-      owned && owned.clientId === input.clientId &&
-      owned.configPath !== configPath &&
-      io.statKind(owned.configPath) === "file" &&
-      spec.bindsDriftedRecord?.(owned.configPath, input.env, input.home) === true
-    ) {
-      configPath = owned.configPath;
-    }
+    configPath = boundIntegrationConfigPath({
+      clientId: input.clientId,
+      record: store.readRecords()[input.clientId] ?? null,
+      resolvedPath: configPath,
+      statKind: io.statKind,
+      env: input.env,
+      home: input.home,
+    });
   } catch (error) {
     if (!(error instanceof ClientPathError)) throw error;
     /*
@@ -562,7 +561,7 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
 
   const parsed = input.clientId === "cline"
     ? parseClineDocument(target.before)
-    : parseConfig(target.before, exportSpec.format, input.clientId === "kilo" ? { jsonc: true } : undefined);
+    : parseConfig(target.before, exportSpec.format, exportSpec.jsonc ? { jsonc: true } : undefined);
   const contribution = exportSpec.buildContribution(exportContextOf(input));
   const record = store.readRecords()[input.clientId] ?? null;
   const { state, reason } = classifyIntegration({
