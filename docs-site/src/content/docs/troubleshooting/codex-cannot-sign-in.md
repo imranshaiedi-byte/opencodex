@@ -64,9 +64,16 @@ detail and names the repair it recommends.
 ## If ocx is not available
 
 You can undo the routing by hand. Open `$CODEX_HOME/config.toml` and delete
-each `# Auto-injected by opencodex` comment together with the single line
-directly below it, plus any `model_catalog_json` line ending in
-`opencodex-catalog.json`. Leave the rest of the file alone.
+three things: the `openai_base_url` line, the
+`experimental_realtime_ws_base_url` line, and any `model_catalog_json` line
+ending in `opencodex-catalog.json`. Remove the
+`# Auto-injected by opencodex` comment sitting directly above each of the first
+two along with them.
+
+Go by the key name, not by the comment. opencodex uses the same ownership
+comment above other keys it manages, such as an injected
+`developer_instructions`, and deleting those will not help you sign in while
+costing you configuration you may want back.
 
 Delete the `model_catalog_json` line **with** the routing, not on its own. A
 `model_catalog_json` that names a file which no longer exists makes Codex fail

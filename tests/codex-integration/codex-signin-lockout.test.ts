@@ -17,13 +17,20 @@ import {
   hasInjectedCodexRouting,
   hasInjectedOpenaiBaseUrl,
 } from "../../src/codex/injected-marker";
-import { setRootOpenaiBaseUrl } from "../../src/codex/inject/config-toml";
+import { setRootOpenaiBaseUrl, setRootRealtimeWsBaseUrl } from "../../src/codex/inject/config-toml";
 import { stripOpencodexConfig } from "../../src/codex/inject/remove";
 import { deadProxyRoutingAdviceLines } from "../../src/cli/status";
 import { findCommand } from "../../src/cli/registry";
 
 /** A Windows catalog path as TOML stores it: a basic string doubles the separators (#1798). */
 const WINDOWS_CATALOG = JSON.stringify(String.raw`C:\Users\example\.codex\opencodex-catalog.json`);
+
+/** The loopback target the reported install was on. */
+const TARGET = {
+  baseUrl: "http://127.0.0.1:10100/v1",
+  requiresAdmissionToken: false,
+  tokenEnv: "OPENCODEX_API_AUTH_TOKEN",
+} as const;
 
 /** The reported file, reconstructed: routing on disk, proxy gone. `marker` is the ownership line. */
 function lockedOutConfig(marker: string): string {
@@ -50,7 +57,6 @@ describe("Codex sign-in lockout behind a stopped proxy (#5261)", () => {
 
   test("the hint changes what we write, never what we recognize or remove", () => {
     const hinted = lockedOutConfig(OCX_ROUTING_MARKER_LINE);
-    expect(OCX_ROUTING_MARKER_LINE).toContain(OCX_SECTION_MARKER);
     expect(hasInjectedOpenaiBaseUrl(hinted)).toBe(true);
     expect(hasInjectedCodexRouting(hinted)).toBe(true);
     // Byte-identical recovery from either marker: the two forms must not diverge, or an
@@ -73,13 +79,20 @@ describe("Codex sign-in lockout behind a stopped proxy (#5261)", () => {
 
   test("an install that predates the hint gains it on the next injection, and stays idempotent", () => {
     const legacy = lockedOutConfig(OCX_SECTION_MARKER);
+    const markers = (content: string) => content.split("\n").filter(line => line.includes(OCX_SECTION_MARKER));
+    expect(markers(legacy)).toEqual([OCX_SECTION_MARKER, OCX_SECTION_MARKER]);
+
     const first = setRootOpenaiBaseUrl(legacy, 10100);
     expect(first.keptUserBaseUrl).toBe(false);
-    expect(first.content).toContain(OCX_ROUTING_MARKER_LINE);
-    // Refreshed in place, not appended: the ownership line count is unchanged.
-    expect(first.content.match(/Auto-injected by opencodex/g)?.length)
-      .toBe(legacy.match(/Auto-injected by opencodex/g)?.length);
+    // Each writer refreshes only the marker it owns, so after the routing key alone the
+    // realtime marker is still the legacy line. Refreshed in place, never appended.
+    expect(markers(first.content)).toEqual([OCX_ROUTING_MARKER_LINE, OCX_SECTION_MARKER]);
     expect(setRootOpenaiBaseUrl(first.content, 10100).content).toBe(first.content);
+
+    const both = setRootRealtimeWsBaseUrl(first.content, TARGET);
+    expect(both.keptUserRealtimeWsBaseUrl).toBe(false);
+    expect(markers(both.content)).toEqual([OCX_ROUTING_MARKER_LINE, OCX_ROUTING_MARKER_LINE]);
+    expect(setRootRealtimeWsBaseUrl(both.content, TARGET).content).toBe(both.content);
   });
 
   test("a user's own root override is still left alone and gains no hint", () => {

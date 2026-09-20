@@ -22,7 +22,7 @@ import {
   resolveCodexProviderDisplayName,
 } from "../../src/codex/inject/config-toml";
 import { extractOcxProviderTableBlock } from "../../src/codex/inject/remove";
-import { OCX_SECTION_MARKER, stripJournaledOpenaiBaseUrl } from "../../src/codex/injected-marker";
+import { OCX_ROUTING_MARKER_LINE, OCX_SECTION_MARKER, stripJournaledOpenaiBaseUrl } from "../../src/codex/injected-marker";
 import {
   MANAGED_AGENTS_TABLE_MARKER,
   MANAGED_SUBAGENT_DEFAULT_MARKER,
@@ -852,12 +852,19 @@ describe("EOL boundary helpers (Windows CRLF configs)", () => {
   });
 });
 
+/**
+ * What an injection does to a marker it already owns: the routing keys carry the recovery
+ * command (#5261), and a rewrite in place refreshes a bare marker left by an earlier build.
+ * Only our own ownership line moves; everything else below is asserted unchanged.
+ */
+const refreshed = (content: string) => content.replace(OCX_SECTION_MARKER, OCX_ROUTING_MARKER_LINE);
+
 test('managed injection is idempotent and retains every unrelated value',()=>{
  const source=`model = "gpt-6-astra"\n${OCX_SECTION_MARKER}\nopenai_base_url = "http://127.0.0.1:10100/v1"\nservice_tier = "fast"\n[features]\ncontext_management.experimental_mode = true\n[features.multi_agent_v2]\nenabled = true\n`;
  const target={baseUrl:'http://127.0.0.1:10100/v1',requiresAdmissionToken:false,tokenEnv:'OPENCODEX_API_AUTH_TOKEN' as const};
  const result=setRootOpenaiBaseUrl(source,target);
  expect(result.keptUserBaseUrl).toBe(false);
- expect(result.content).toBe(source.replace('10100/v1','10100/backend-api/codex'));
+ expect(result.content).toBe(refreshed(source).replace('10100/v1','10100/backend-api/codex'));
  expect(setRootOpenaiBaseUrl(result.content,target).content).toBe(result.content);
  expect(buildRealtimeWsBaseUrlLine(target)).toContain('10100/v1');
  expect(setRootOpenaiBaseUrl(source,10100).content).toBe(result.content);
@@ -866,7 +873,7 @@ test('feature disabled and user-owned routing remain intact',()=>{
  const source='openai_base_url = "http://127.0.0.1:10100/v1"\n[features]\ncontext_management.experimental_mode = true\n';
  expect(setRootOpenaiBaseUrl(source,10100)).toEqual({content:source,keptUserBaseUrl:true});
  const managed=`${OCX_SECTION_MARKER}\nopenai_base_url = "http://127.0.0.1:10100/v1"\n[features]\ncontext_management.experimental_mode = false\n`;
- expect(setRootOpenaiBaseUrl(managed,10100).content).toBe(managed);
+ expect(setRootOpenaiBaseUrl(managed,10100).content).toBe(refreshed(managed));
 });
 
 
@@ -877,7 +884,9 @@ test("malformed TOML preserves user routing and does not enable context injectio
     const managed = `${OCX_SECTION_MARKER}\nopenai_base_url = "http://127.0.0.1:10100/v1"\n${malformed}\n`;
     for (const inject of [(source: string) => setRootOpenaiBaseUrl(source, 10100), (source: string) => setRootOpenaiBaseUrl(source, target)]) {
       expect(inject(userOwned)).toEqual({ content: userOwned, keptUserBaseUrl: true });
-      expect(inject(managed)).toEqual({ content: managed, keptUserBaseUrl: false });
+      // A file we cannot parse is still not rewritten beyond the routing we own: the marker
+      // refreshes, the malformed tail is returned byte for byte.
+      expect(inject(managed)).toEqual({ content: refreshed(managed), keptUserBaseUrl: false });
     }
   }
 });
