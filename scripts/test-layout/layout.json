@@ -1567,6 +1567,7 @@
     "management-google-tool-schema-policy.test.ts": "server",
     "codex-shim-destroyed-probe.test.ts": "codex-integration",
     "client-runtime.test.ts": "clients",
+    "chat-tool-choice-allowed-tools.test.ts": "responses",
     "devin-output-budget.test.ts": "providers",
     "api-key-model-scope.test.ts": "server"
   },
