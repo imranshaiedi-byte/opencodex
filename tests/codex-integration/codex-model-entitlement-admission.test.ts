@@ -283,4 +283,25 @@ describe("entitlement freshness admission", () => {
     expect(releasedAt).toBeGreaterThanOrEqual(0);
     expect(fetchedAt).toBeGreaterThan(releasedAt);
   });
+
+  test("forwards the caller signal into entitlement resolution", async () => {
+    // A cancelled data-plane request (/v1/models) must fence its own credential
+    // refresh: the signal has to reach resolveCodexModelEntitlements, which hands
+    // it to the native-main token refresh and the roster phase.
+    const controller = new AbortController();
+    let received: CodexModelEntitlementResolveOptions | undefined;
+
+    await resolveAdmittedCodexModelEntitlements(
+      { codexAccounts: [] },
+      { clientVersion: null, signal: controller.signal, credentials: [] },
+      {
+        resolve: async (_config, options) => {
+          received = options;
+          return emptySnapshot;
+        },
+      },
+    );
+
+    expect(received?.signal).toBe(controller.signal);
+  });
 });

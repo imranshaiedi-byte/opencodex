@@ -819,7 +819,13 @@ export function createServeOptions(ctx: ServeOptionsContext) {
             // Codex sends its own client_version on this request, and upstream filters the
             // entitlement roster by it. Passing it through is what stops an entitled account
             // being told it cannot use models a newer client can (#2886).
-            resolveAdmittedCodexModelEntitlements(config, { clientVersion: url.searchParams.get("client_version") }),
+            // The request signal fences the credential phase too: a client that has already
+            // gone away must not keep a native-main token refresh alive, and its late result
+            // must not commit on behalf of a request that no longer exists.
+            resolveAdmittedCodexModelEntitlements(config, {
+              clientVersion: url.searchParams.get("client_version"),
+              signal: req.signal,
+            }),
           ]);
         } catch (error) {
           if (error instanceof CatalogGatherBusyError) {
