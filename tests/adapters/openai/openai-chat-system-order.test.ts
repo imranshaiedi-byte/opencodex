@@ -47,9 +47,9 @@ describe("openai-chat system message ordering", () => {
       content: "base instructions",
     });
     expect(messages.map(message => message.role))
-      .toEqual(["system", "user", "system", "assistant", "system", "user"]);
-    expect(messages[2]).toEqual({ role: "system", content: "first reminder" });
-    expect(messages[4]).toEqual({ role: "system", content: "second reminder" });
+      .toEqual(["system", "user", "developer", "assistant", "developer", "user"]);
+    expect(messages[2]).toEqual({ role: "developer", content: "first reminder" });
+    expect(messages[4]).toEqual({ role: "developer", content: "second reminder" });
   });
 
   test("defers a reminder past a pending tool result instead of hoisting it", () => {
@@ -76,9 +76,9 @@ describe("openai-chat system message ordering", () => {
 
     // The reminder arrived while call_1 was open. Emitting it there would break tool-call
     // adjacency, so it is released immediately after the result rather than moved to the front.
-    expect(messages.map(message => message.role)).toEqual(["user", "assistant", "tool", "system"]);
+    expect(messages.map(message => message.role)).toEqual(["user", "assistant", "tool", "developer"]);
     expect(messages[2]).toMatchObject({ role: "tool", tool_call_id: "call_1" });
-    expect(messages[3]).toEqual({ role: "system", content: "remember the policy" });
+    expect(messages[3]).toEqual({ role: "developer", content: "remember the policy" });
   });
 
   test("keeps developer vision content as a user-compatible message in place", () => {
@@ -145,10 +145,10 @@ describe("chronological in-conversation system messages", () => {
       { role: "system", content: "Synthetic reminder B." },
     ], ocg, model, stabilize);
     expect(JSON.stringify(next.messages.slice(0, first.messages.length))).toBe(JSON.stringify(first.messages));
-    expect(first.messages.map((message: { role: string }) => message.role)).toEqual(["system", "user", "assistant", "system"]);
+    expect(first.messages.map((message: { role: string }) => message.role)).toEqual(["system", "user", "assistant", "developer"]);
     expect(first.messages[0].content).not.toContain("Synthetic reminder A.");
-    expect(first.messages.at(-1)).toEqual({ role: "system", content: "Synthetic reminder A." });
-    expect(next.messages.at(-1)).toEqual({ role: "system", content: "Synthetic reminder B." });
+    expect(first.messages.at(-1)).toEqual({ role: "developer", content: "Synthetic reminder A." });
+    expect(next.messages.at(-1)).toEqual({ role: "developer", content: "Synthetic reminder B." });
     expect(next.tools).toEqual(first.tools);
     expect(next.model).toBe(model);
     expect(next.stream).toBe(true);
@@ -165,14 +165,14 @@ describe("chronological in-conversation system messages", () => {
     expect(callIndex).toBeGreaterThan(0);
     expect(body.messages[callIndex].reasoning_content).toBe(" ");
     expect(body.messages[callIndex + 1]).toMatchObject({ role: "tool", tool_call_id: "call_fixture", content: "Fixture result." });
-    expect(body.messages[callIndex + 2]).toEqual({ role: "system", content: "Reminder during pending tool." });
+    expect(body.messages[callIndex + 2]).toEqual({ role: "developer", content: "Reminder during pending tool." });
   });
 
   test.each([
     "https://opencode.ai/zen/go/v1/",
     "https://opencode.ai:443/zen/go/v1",
   ])("keeps the reminder last on the canonical OpenCode Go destination %s", baseUrl => {
-    expect(build(history, { ...ocg, baseUrl }).messages.at(-1).role).toBe("system");
+    expect(build(history, { ...ocg, baseUrl }).messages.at(-1).role).toBe("developer");
   });
 
   test.each([
@@ -185,20 +185,28 @@ describe("chronological in-conversation system messages", () => {
     const messages = build(history, { ...ocg, baseUrl }).messages;
     expect(messages[0].content).not.toContain("Synthetic reminder A.");
     expect(messages.map((message: { role: string }) => message.role))
-      .toEqual(["system", "user", "assistant", "system"]);
-    expect(messages.at(-1)).toEqual({ role: "system", content: "Synthetic reminder A." });
+      .toEqual(["system", "user", "assistant", "developer"]);
+    expect(messages.at(-1)).toEqual({ role: "developer", content: "Synthetic reminder A." });
   });
 
   test("placement no longer depends on the model either", () => {
     const messages = build(history, ocg, "kimi-k3").messages;
     expect(messages[0].content).not.toContain("Synthetic reminder A.");
-    expect(messages.at(-1)).toEqual({ role: "system", content: "Synthetic reminder A." });
+    expect(messages.at(-1)).toEqual({ role: "developer", content: "Synthetic reminder A." });
   });
 
-  test("retains native OpenAI developer roles", () => {
+  test("the native OpenAI wire is unchanged", () => {
     const messages = build(history, { ...ocg, baseUrl: "https://api.openai.com/v1" }).messages;
     expect(messages[0].content).not.toContain("Synthetic reminder A.");
     expect(messages.at(-1)).toEqual({ role: "developer", content: "Synthetic reminder A." });
+  });
+
+  test("a destination that rejects the role folds it in place", () => {
+    const messages = build(history, { ...ocg, foldDeveloperRoleToSystem: true }).messages;
+    expect(messages.map((message: { role: string }) => message.role))
+      .toEqual(["system", "user", "assistant", "system"]);
+    expect(messages[0].content).not.toContain("Synthetic reminder A.");
+    expect(messages.at(-1)).toEqual({ role: "system", content: "Synthetic reminder A." });
   });
 
   test("drops a non-text timeline message instead of emitting an empty system message", () => {

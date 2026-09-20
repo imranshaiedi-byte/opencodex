@@ -37,10 +37,10 @@ function wireMessages(provider: OcxProviderConfig): Array<Record<string, unknown
 describe("developer message placement on the Chat wire", () => {
   test("a non-OpenAI gateway keeps the instruction between the two turns", () => {
     const messages = wireMessages(gateway);
-    expect(messages.map(message => message.role)).toEqual(["system", "user", "system", "user"]);
+    expect(messages.map(message => message.role)).toEqual(["system", "user", "developer", "user"]);
     expect(messages[0]).toEqual({ role: "system", content: "base instructions" });
     expect(messages[1]).toEqual({ role: "user", content: "First turn." });
-    expect(messages[2]).toEqual({ role: "system", content: "Answer in exactly one sentence." });
+    expect(messages[2]).toEqual({ role: "developer", content: "Answer in exactly one sentence." });
     expect(messages[3]).toEqual({ role: "user", content: "Second turn." });
   });
 
@@ -56,9 +56,31 @@ describe("developer message placement on the Chat wire", () => {
     ];
     for (const baseUrl of hosts) {
       const messages = wireMessages({ ...gateway, baseUrl });
-      expect(messages.map(message => message.role).indexOf("user")).toBe(1);
+      expect(messages.map(message => message.role)).toEqual(["system", "user", "developer", "user"]);
       expect(messages[2].content).toBe("Answer in exactly one sentence.");
       expect(messages[3]).toEqual({ role: "user", content: "Second turn." });
     }
+  });
+});
+
+describe("developer role on the Chat wire", () => {
+  test("the role is forwarded as itself rather than inferred from the hostname", () => {
+    for (const baseUrl of ["https://openrouter.ai/api/v1", "http://localhost:1234/v1", "https://api.openai.com/v1"]) {
+      expect(wireMessages({ ...gateway, baseUrl })[2]).toEqual({
+        role: "developer",
+        content: "Answer in exactly one sentence.",
+      });
+    }
+  });
+
+  test("a destination that rejects the role converts it without moving the message", () => {
+    const messages = wireMessages({ ...gateway, foldDeveloperRoleToSystem: true });
+    expect(messages.map(message => message.role)).toEqual(["system", "user", "system", "user"]);
+    expect(messages[2]).toEqual({ role: "system", content: "Answer in exactly one sentence." });
+    expect(String(messages[0].content)).not.toContain("Answer in exactly one sentence.");
+  });
+
+  test("the opt-out is off unless the operator sets it", () => {
+    expect(wireMessages({ ...gateway, foldDeveloperRoleToSystem: false })[2].role).toBe("developer");
   });
 });

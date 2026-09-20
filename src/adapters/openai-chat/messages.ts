@@ -113,6 +113,13 @@ export function messagesToChatFormat(parsed: OcxParsedRequest, provider: OcxProv
   };
 
   const nativeOpenAI = isNativeOpenAIChatTarget(provider);
+  // `developer` is part of the Chat Completions role set, so it is forwarded as itself. The
+  // host test above used to decide the role too, which assumed every OpenAI-compatible gateway
+  // rejects a standard role until proven otherwise — including gateways that proxy OpenAI —
+  // and quietly gave the instruction `system` precedence instead (#5213). A destination that
+  // really does reject it records that with `foldDeveloperRoleToSystem`, which converts the
+  // role where the message already is and never moves it.
+  const developerWireRole = provider.foldDeveloperRoleToSystem === true ? "system" : "developer";
   // A developer message keeps the slot it arrived in. Hoisting its text into the leading
   // system block moved a mid-conversation instruction ahead of every turn it was written to
   // follow, and the caller saw an ordinary answer either way (#5213). The Claude inbound mints
@@ -155,7 +162,7 @@ export function messagesToChatFormat(parsed: OcxParsedRequest, provider: OcxProv
           // message instead is rejected by some upstreams. Native OpenAI keeps its existing
           // empty-developer wire, which is a separate question from placement.
           if (!nativeOpenAI && text.length === 0) break;
-          chatMsg = { role: nativeOpenAI ? "developer" : "system", content: text };
+          chatMsg = { role: developerWireRole, content: text };
         } else if (typeof msg.content === "string") {
           chatMsg = { role: "user", content: msg.content };
         } else if (!hasImages) {
