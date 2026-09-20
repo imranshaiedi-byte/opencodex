@@ -9,6 +9,7 @@ import {
   MANAGED_AGENTS_TABLE_MARKER,
   MANAGED_SUBAGENT_DEFAULT_MARKER,
 } from "../../src/codex/subagent-defaults";
+import { OCX_ROUTING_MARKER_LINE } from "../../src/codex/injected-marker";
 import { SPAWN_BUDGET_MS } from "../helpers/test-budget";
 import { removeTreeWithRetry } from "../helpers/remove-tree";
 
@@ -74,9 +75,9 @@ function runRestore(codexHome: string, ocxHome: string, asyncRestore = false): {
 
 describe("injectCodexConfig integration (Design B)", () => {
   const DESIGN_B_BLOCK = [
-    "# Auto-injected by opencodex",
+    OCX_ROUTING_MARKER_LINE,
     'openai_base_url = "http://127.0.0.1:10100/v1"',
-    "# Auto-injected by opencodex",
+    OCX_ROUTING_MARKER_LINE,
     'experimental_realtime_ws_base_url = "http://127.0.0.1:10100/v1"',
   ].join("\n");
   let codexHome: string;
