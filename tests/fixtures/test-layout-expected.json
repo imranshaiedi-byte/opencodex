@@ -127,6 +127,7 @@
   "bump-dev-version.test.ts": "ci-workflows",
   "bun-runtime.test.ts": "ci-workflows",
   "bun-stream-caps.test.ts": "lib",
+  "cache-diagnostic.test.ts": "usage",
   "cancel-body-on-abort.test.ts": "server",
   "catalog-auto-refresh-scheduler.test.ts": "codex-integration",
   "catalog-cursor-search.test.ts": "codex-integration",
