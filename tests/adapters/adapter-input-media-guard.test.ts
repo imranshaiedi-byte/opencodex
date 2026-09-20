@@ -8,7 +8,11 @@ import type { AdapterEvent, OcxParsedRequest, OcxProviderConfig } from "../../sr
 import { createTestTranslatorBudget, withTestTranslatorBudget } from "../helpers/translator-budget";
 
 const AUDIO = { type: "input_audio", audio_url: "data:audio/wav;base64,YWJj" };
-const FILE = { type: "input_file", filename: "private.pdf", file_data: "data:application/pdf;base64,JVBERi0=" };
+// A reference this route cannot dereference: there are no bytes to carry anywhere.
+const FILE = { type: "input_file", filename: "private.pdf", file_id: "file-private" };
+// The same attachment with its bytes. User content has a carrier for it (#5212); no other
+// position does, because every other converter reduces its content to text.
+const INLINE_FILE = { type: "input_file", filename: "private.pdf", file_data: "data:application/pdf;base64,JVBERi0=" };
 
 function request(content: unknown[]): OcxParsedRequest {
   return parseRequest({ model: "test-model", input: [{ type: "message", role: "user", content }] });
@@ -39,6 +43,27 @@ describe("typed input media inspection", () => {
     for (const type of ["function_call_output", "custom_tool_call_output"]) {
       expect(untranslatedResponsesInputMedia({ input: [{ type, call_id: "call1", output: [AUDIO] }] })).toBe("audio");
       expect(untranslatedResponsesInputMedia({ input: [{ type, call_id: "call1", output: [FILE] }] })).toBe("file");
+      // Bytes do not help here: the tool-output converter flattens its content to text.
+      expect(untranslatedResponsesInputMedia({ input: [{ type, call_id: "call1", output: [INLINE_FILE] }] })).toBe("file");
+    }
+  });
+
+  test("an inline document is permitted only where a converter carries it", () => {
+    expect(untranslatedResponsesInputMedia(request([INLINE_FILE])._rawBody)).toBeUndefined();
+    for (const role of ["developer", "user"]) {
+      expect(untranslatedResponsesInputMedia({ input: [{ type: "message", role, content: [INLINE_FILE] }] }))
+        .toBeUndefined();
+    }
+    for (const role of ["system", "assistant"]) {
+      expect(untranslatedResponsesInputMedia({ input: [{ type: "message", role, content: [INLINE_FILE] }] }))
+        .toBe("file");
+    }
+  });
+
+  test("a base64 look-alike parameter is not an inline payload", () => {
+    for (const fileData of ["data:text/plain;notbase64,abc", "data:text/plain;x=base64,abc", "data:text/plain,abc"]) {
+      expect(untranslatedResponsesInputMedia(request([{ type: "input_file", file_data: fileData }])._rawBody))
+        .toBe("file");
     }
   });
 

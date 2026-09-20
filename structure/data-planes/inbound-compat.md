@@ -334,7 +334,11 @@ default and require an explicit `thinking:{type:"disabled"}` to stop.
 
 The native Chat path retains provider-native file/audio blocks. When a request instead needs
 Chat-to-Responses projection, `src/chat/inbound.ts` rejects recognized audio/file content
-before it can become empty text, regardless of message role. Legacy `function`-role images
+before it can become empty text. The one exception is a `file` part carrying inline base64
+bytes in a `user` message: that projection builds an `input_file` block and the bytes survive
+to any wire with a counterpart. The same part in a `system`, `developer`, `assistant` or
+`tool` message is still refused, because those branches flatten their content to a string.
+Legacy `function`-role images
 also return an explicit error; their call/result pairing is not implemented by this projection.
 Modern `tool` images continue through the existing following-user carrier. These errors state
 an OpenCodex conversion limit, not a provider capability claim. Final Responses-to-adapter

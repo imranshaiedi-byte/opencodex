@@ -6,6 +6,7 @@ import { EMPTY_TOOL_OUTPUT_ANNOTATION, isWhitespaceOnlyTextPartArray } from "../
 import { identifyRoutedModel } from "../identity";
 import { buildNonOpenAIToolCatalogNudgeForTools, shouldInjectNonOpenAIToolCatalogNudge } from "../tool-catalog-nudge";
 import { peekReasoningForCall } from "../../responses/reasoning-replay-cache";
+import { inlineDocumentDataUrl } from "../../responses/inline-document";
 import type { OcxAssistantMessage, OcxContentPart, OcxParsedRequest, OcxProviderConfig, OcxTextContent, OcxThinkingContent, OcxToolCall } from "../../types";
 import { modelInList, namespacedToolName } from "../../types";
 
@@ -152,8 +153,11 @@ export function messagesToChatFormat(parsed: OcxParsedRequest, provider: OcxProv
       case "developer": {
         const parts = typeof msg.content === "string" ? undefined : msg.content as OcxContentPart[];
         const hasImages = parts?.some(p => p.type === "image") ?? false;
+        // A document has a structured counterpart on this wire, so it needs the parts array for
+        // the same reason an image does: flattening it to a string would drop the bytes.
+        const hasStructured = hasImages || (parts?.some(p => p.type === "document") ?? false);
         let chatMsg: Record<string, unknown>;
-        if (msg.role === "developer" && !hasImages) {
+        if (msg.role === "developer" && !hasStructured) {
           const text = typeof msg.content === "string"
             ? msg.content
             : parts!.map(p => (p as OcxTextContent).text).join("");
@@ -165,7 +169,7 @@ export function messagesToChatFormat(parsed: OcxParsedRequest, provider: OcxProv
           chatMsg = { role: developerWireRole, content: text };
         } else if (typeof msg.content === "string") {
           chatMsg = { role: "user", content: msg.content };
-        } else if (!hasImages) {
+        } else if (!hasStructured) {
           // A video part has no `text`, so joining it produced "" and the whole message
           // was dropped: a video-only or text-plus-video turn vanished silently. OpenAI's
           // Chat Completions wire has no video content part, so state the omission
@@ -182,6 +186,17 @@ export function messagesToChatFormat(parsed: OcxParsedRequest, provider: OcxProv
           const chatParts = parts!.map(p => {
             if (p.type === "image") {
               return { type: "image_url", image_url: { url: p.imageUrl, ...(p.detail ? { detail: p.detail } : {}) } };
+            }
+            // Chat Completions carries an attached document as a file part with inline bytes,
+            // the direct counterpart of the Anthropic document block the caller sent.
+            if (p.type === "document") {
+              return {
+                type: "file",
+                file: {
+                  file_data: inlineDocumentDataUrl(p),
+                  ...(p.filename !== undefined ? { filename: p.filename } : {}),
+                },
+              };
             }
             // Previously this produced { type: "text", text: undefined } for a video
             // part — a malformed part, worse than a drop because it can fail upstream

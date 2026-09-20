@@ -348,6 +348,13 @@ function messagesToGeminiFormat(
               parts.push(data ? { inline_data: { mime_type: data.mediaType, data: data.base64 } } : { text: `[video: ${p.videoUrl}]` });
               continue;
             }
+            if (p.type === "document") {
+              // Gemini takes document bytes through the same inline_data part as images and
+              // video. The marker on the part is the fallback for wires without one, not this
+              // wire's best effort (#5212).
+              parts.push({ inline_data: { mime_type: p.mediaType, data: p.data } });
+              continue;
+            }
             // Drop empty/malformed text instead of emitting `{ text: "" }` or a bare `{}` part.
             const textPart = geminiTextPart(p.text);
             if (textPart) parts.push(textPart);

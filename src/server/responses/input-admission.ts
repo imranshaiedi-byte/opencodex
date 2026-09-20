@@ -85,6 +85,9 @@ function imageTokens(imageUrl: string): number {
 function contentPartTokens(part: OcxContentPart, modelId: string): number {
   if (part.type === "image") return imageTokens(part.imageUrl);
   if (part.type === "video") return imageTokens(part.videoUrl);
+  // An inline document is a base64 payload, not a sentence: estimating it from its marker would
+  // admit a request whose real input is orders of magnitude larger.
+  if (part.type === "document") return imageTokens(`data:${part.mediaType};base64,${part.data}`);
   return estimateTokens(part.text, modelId);
 }
 

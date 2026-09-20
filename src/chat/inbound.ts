@@ -92,9 +92,30 @@ function userContentToBlocks(content: unknown): Rec[] {
       continue;
     }
     const videoUrl = videoUrlFromPart(raw);
-    if (videoUrl) blocks.push({ type: "input_video", video_url: videoUrl });
+    if (videoUrl) {
+      blocks.push({ type: "input_video", video_url: videoUrl });
+      continue;
+    }
+    const file = fileFromPart(raw);
+    if (file) blocks.push(file);
   }
   return blocks;
+}
+
+/**
+ * A Chat Completions `file` part carrying inline bytes, as the Responses `input_file` block.
+ *
+ * Nothing here recognized the shape, so the part reached the end of the loop with no branch and
+ * was dropped in silence (#5212). A part with no inline bytes is still not translatable and is
+ * left to the untranslated-media refusal, which runs before this loop.
+ */
+function fileFromPart(part: Rec): Rec | null {
+  if (part.type !== "file" && part.type !== "input_file") return null;
+  const file = isRec(part.file) ? part.file : part;
+  const fileData = file.file_data;
+  if (typeof fileData !== "string" || fileData.length === 0) return null;
+  const filename = typeof file.filename === "string" && file.filename.length > 0 ? file.filename : undefined;
+  return { type: "input_file", file_data: fileData, ...(filename ? { filename } : {}) };
 }
 
 /**
