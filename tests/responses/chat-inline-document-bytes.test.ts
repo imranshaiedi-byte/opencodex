@@ -4,6 +4,7 @@ import { createOpenAIChatAdapter } from "../../src/adapters/openai-chat";
 import { chatCompletionsToResponsesBody, ChatCompletionsRequestError } from "../../src/chat/inbound";
 import { anthropicToResponsesBody } from "../../src/claude/inbound";
 import { parseRequest } from "../../src/responses/parser";
+import { inlineDocumentDataUrl, inlineDocumentMarker } from "../../src/responses/inline-document";
 import type { OcxParsedRequest, OcxProviderConfig } from "../../src/types";
 
 /**
@@ -14,7 +15,14 @@ import type { OcxParsedRequest, OcxProviderConfig } from "../../src/types";
  */
 
 const PDF_BYTES = "JVBERi0xLjQK";
-const PDF_DATA_URL = `data:application/pdf;base64,${PDF_BYTES}`;
+// Derived, not restated: the wire spelling is the module's to define, and a test that repeats it
+// fails for the wrong reason the next time it changes.
+const PDF_DATA_URL = inlineDocumentDataUrl({
+  type: "document",
+  text: "",
+  mediaType: "application/pdf",
+  data: PDF_BYTES,
+});
 
 const chatProvider: OcxProviderConfig = {
   adapter: "openai-chat",
@@ -63,14 +71,26 @@ describe("inline document bytes survive the inbound parse", () => {
       file: { filename: "doc.pdf", file_data: PDF_DATA_URL },
     })));
     expect(content).toEqual([
-      { type: "document", text: "[document: doc.pdf]", mediaType: "application/pdf", data: PDF_BYTES, filename: "doc.pdf" },
+      {
+        type: "document",
+        text: inlineDocumentMarker("doc.pdf"),
+        mediaType: "application/pdf",
+        data: PDF_BYTES,
+        filename: "doc.pdf",
+      },
     ]);
   });
 
   test("an Anthropic base64 document keeps its bytes and its title", () => {
     const content = parsedContent(anthropicToResponsesBody(claudeRequest(DOCUMENT_BLOCK)));
     expect(content).toEqual([
-      { type: "document", text: "[document: spec]", mediaType: "application/pdf", data: PDF_BYTES, filename: "spec" },
+      {
+        type: "document",
+        text: inlineDocumentMarker("spec"),
+        mediaType: "application/pdf",
+        data: PDF_BYTES,
+        filename: "spec",
+      },
     ]);
   });
 
@@ -80,7 +100,7 @@ describe("inline document bytes survive the inbound parse", () => {
       title: "remote",
       source: { type: "url", url: "https://example.com/doc.pdf" },
     })));
-    expect(content).toBe("[document: remote]");
+    expect(content).toBe(inlineDocumentMarker("remote"));
   });
 
   test("a reference with no payload is still refused rather than answered", () => {
