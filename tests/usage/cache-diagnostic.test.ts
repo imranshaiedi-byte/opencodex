@@ -144,6 +144,28 @@ describe("cache diagnostic", () => {
     expect(record.prefix.firstDivergentBlock).toEqual({ section: "messages", index: 1 });
   });
 
+  test("observation never mutates the live request body", () => {
+    process.env.OPENCODEX_CACHE_DEBUG = "1";
+    // An array-valued instructions field aliases the body's own array in the block
+    // splitter; appending system/developer content into it would rewrite the request
+    // the adapter is about to send upstream.
+    const body = {
+      instructions: ["standing-instruction"],
+      input: [
+        { role: "system", content: "system-note" },
+        { role: "user", content: "hello" },
+      ],
+    };
+    const before = JSON.stringify(body);
+    const draft = observeInbound(body, new Headers());
+    observeOutbound(body, body, {});
+    append("immutability", draft);
+
+    expect(JSON.stringify(body)).toBe(before);
+    const [record] = diagnosticRecords();
+    expect(record.prefix.inbound.messages.tags).toHaveLength(1);
+  });
+
   test("keeps an observed upstream zero distinct from an absent counter", () => {
     process.env.OPENCODEX_CACHE_DEBUG = "1";
     append("zero", observeInbound({}, new Headers()), { raw: 0, value: 0, provenance: "observed" });

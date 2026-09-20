@@ -76,4 +76,3 @@ describe("cursor live roster account scoping", () => {
     expect(calls).toEqual(["acct-a-token", "acct-a-token", "acct-b-token"]);
   });
 });
-

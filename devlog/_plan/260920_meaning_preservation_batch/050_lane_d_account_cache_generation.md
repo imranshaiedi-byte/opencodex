@@ -68,9 +68,12 @@ stay open for the coordinator.
 - False/unknown/absent is covered on the entitlement path
   (`model-entitlements.ts` keeps a `confirmed` bit separate from the model
   set, and the public state is tri-state) and is pinned by existing tests in
-  `codex-model-entitlements.test.ts`. For usage telemetry the same
-  distinction now survives extraction: an all-zero frame with a measured
-  cache counter no longer collapses to "unreported".
+  `codex-model-entitlements.test.ts`. For usage telemetry the distinction
+  rides the existing provenance enum: a measured zero is `observed`, a
+  defaulted zero from a normalized wire is `synthesized`, and an absent
+  counter is `unknown` — an earlier revision of this branch changed
+  extraction to keep all-zero frames alive, and review rejected it because it
+  reclassified spend settlement for placeholder frames.
 - Deliberately NOT generation-scoped: quota/rate-limit avoidance
   (`health-store.ts`, `subagent-model-fallback.ts`). Those observations
   describe the subscription, not the token generation; scoping them to a
@@ -86,6 +89,24 @@ stay open for the coordinator.
 - Lane D owns #4793 and the per-model cache view; the diagnostic reuses the
   usage ledger's account label (salted, process-local) instead of inventing a
   new identifier.
+
+## Adversarial review (pre-CI) and its dispositions
+
+- HIGH, fixed: the carried entitlement-admission test kept its tests-root
+  import paths after the domain move; all imports now resolve.
+- HIGH, fixed: the diagnostic's block splitter aliased an array-valued
+  `instructions` field and would have mutated the live request body; it now
+  copies, pinned by a mutation regression test.
+- MEDIUM, rejected with reason: persisted same-process equality tags were
+  called a correlation key. The issue being closed explicitly requests
+  process-scoped salted equality tags so two requests can be compared; the
+  key dies with the process, the file is owner-only, and retention is bounded
+  at 100 records. That is the requested design, not a breach of it.
+- MEDIUM, accepted: the all-zero usage extraction change altered spend
+  settlement semantics for placeholder frames; reverted. The measured-zero
+  versus absent distinction needs no extraction change for any frame that
+  reports tokens.
+- Also fixed: a trailing blank line flagged by `git diff --check`.
 
 ## Verification
 

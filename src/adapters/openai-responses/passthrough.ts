@@ -145,16 +145,10 @@ function usageFromResponsesPayload(payload: unknown): OcxUsage | undefined {
       && Object.keys(usage.input_tokens_details).some(key => key !== "cached_tokens" && key !== "cache_write_tokens"))
     || (isPlainObject(usage.output_tokens_details)
       && Object.keys(usage.output_tokens_details).some(key => key !== "reasoning_tokens"));
+  if (inputTokens === 0 && outputTokens === 0 && !hasExtras) return undefined;
   const inputDetails = isPlainObject(usage.input_tokens_details) ? usage.input_tokens_details : undefined;
   const outputDetails = isPlainObject(usage.output_tokens_details) ? usage.output_tokens_details : undefined;
-  // A cache counter present in the upstream usage object keeps an otherwise all-zero frame
-  // alive: dropping it would report "no usage" and a measured zero could never be told apart
-  // from a counter the upstream never sent.
-  const hasCacheCounter = typeof inputDetails?.cached_tokens === "number"
-    || typeof usage.cache_read_input_tokens === "number"
-    || typeof usage.cached_tokens === "number";
-  if (inputTokens === 0 && outputTokens === 0 && !hasExtras && !hasCacheCounter) return undefined;
-  const normalized: OcxUsage = {
+  return {
     inputTokens,
     outputTokens,
     ...(typeof usage.total_tokens === "number" ? { totalTokens: usage.total_tokens } : {}),
@@ -163,7 +157,6 @@ function usageFromResponsesPayload(payload: unknown): OcxUsage | undefined {
     ...(typeof outputDetails?.reasoning_tokens === "number" ? { reasoningOutputTokens: outputDetails.reasoning_tokens } : {}),
     ...(hasExtras ? { rawUsage: { ...usage } } : {}),
   };
-  return normalized;
 }
 
 function responsesPayloadText(response: unknown): string {

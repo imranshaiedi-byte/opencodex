@@ -102,8 +102,11 @@ function sequence(blocks: unknown[], domain: string): TaggedSequence {
 
 function requestBlocks(body: Record<string, unknown>): { instructions: unknown[]; messages: unknown[] } {
   const instructions = body.instructions;
+  // The spread is load-bearing: an array-valued instructions field must be copied, never
+  // aliased, because the pushes below would otherwise mutate the live request body that
+  // the adapter is about to serialize upstream.
   const instructionRows = instructions === undefined || instructions === null
-    ? [] : Array.isArray(instructions) ? instructions : [instructions];
+    ? [] : Array.isArray(instructions) ? [...instructions] : [instructions];
   const input = Array.isArray(body.input) ? body.input : Array.isArray(body.messages) ? body.messages : [];
   const messages: unknown[] = [];
   for (const block of input) {

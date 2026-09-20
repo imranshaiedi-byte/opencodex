@@ -78,21 +78,6 @@ describe("raw usage passthrough (openai/codex#41980 parity)", () => {
     expect(zeroed.find(event => event.type === "done")?.usage).toBeUndefined();
   });
 
-  test("an all-zero frame with a measured cache counter survives as an observed zero", async () => {
-    const adapter = createAdapter(provider as never);
-    const events = await collect(adapter.parseStream!(completedSse({
-      input_tokens: 0,
-      output_tokens: 0,
-      total_tokens: 0,
-      input_tokens_details: { cached_tokens: 0 },
-    })));
-    const done = events.find(event => event.type === "done");
-    // An absent counter collapses to undefined (the case above); a MEASURED zero must
-    // stay visible so a cache-read drop can be told apart from a counter the upstream
-    // never sent (#5178).
-    expect(done?.usage).toEqual({ inputTokens: 0, outputTokens: 0, totalTokens: 0, cachedInputTokens: 0 });
-  });
-
   test("buildResponseJSON rebuild merges extras under normalized known keys", () => {
     const events: AdapterEvent[] = [
       { type: "text_delta", text: "hi" },
