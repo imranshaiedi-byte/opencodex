@@ -469,7 +469,7 @@ describe("Design B openai_base_url injection", () => {
 
     expect(keptUserBaseUrl).toBe(false);
     const lines = content.split("\n");
-    const markerIdx = lines.findIndex(l => l.includes("Auto-injected by opencodex"));
+    const markerIdx = lines.findIndex(l => l.includes(OCX_SECTION_MARKER));
     const keyIdx = lines.findIndex(l => l.startsWith("openai_base_url"));
     const tableIdx = lines.findIndex(l => l.trim() === "[features]");
     expect(markerIdx).toBeGreaterThanOrEqual(0);
@@ -521,8 +521,10 @@ describe("Design B openai_base_url injection", () => {
       const lines = content.split("\n");
       const routing = lines.indexOf('openai_base_url = "http://127.0.0.1:10100/v1"');
       expect(routing).toBeGreaterThan(0);
-      expect(lines[routing - 1]).toContain("Auto-injected by opencodex");
-      expect(lines[routing + 1]).toContain("Auto-injected by opencodex");
+      // Asserted as the whole routing marker, not a substring of it: a substring check passes
+      // even when the wrong ownership line is written above a routing key (#5261).
+      expect(lines[routing - 1]).toBe(OCX_ROUTING_MARKER_LINE);
+      expect(lines[routing + 1]).toBe(OCX_ROUTING_MARKER_LINE);
       expect(lines[routing + 2]).toBe('experimental_realtime_ws_base_url = "http://127.0.0.1:10100/v1"');
       expect(lines.indexOf("[features]")).toBeGreaterThan(routing + 2);
       expect(content.match(/Auto-injected by opencodex/g)?.length).toBe(2);

@@ -910,7 +910,7 @@ describe("injectCodexConfig integration (Design B)", () => {
 
     const config = readFileSync(join(codexHome, "config.toml"), "utf8");
     expect(config).toContain('openai_base_url = "http://127.0.0.1:10100/v1"');
-    expect(config).toContain("# Auto-injected by opencodex");
+    expect(config).toContain(OCX_ROUTING_MARKER_LINE);
     expect(config).toContain("[model_providers.opencodex]");
     expect(config).not.toContain('model_provider = "opencodex"');
     expect(config).toContain('model = "gpt-5.5"');
