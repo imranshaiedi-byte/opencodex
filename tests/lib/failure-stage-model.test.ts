@@ -24,6 +24,8 @@ import { ATTEMPT_RECOVERY_KIND_ROSTER } from "../../src/usage/log";
  * table this shape is exactly where a merge of two individually correct branches goes wrong -- one
  * adds a cause, the other adds a stage, and the cell neither author looked at is the defect. A
  * loop over the declared rosters has no cell to miss and cannot go stale when a member is added.
+ *
+ * Holds INV-RESEND-01 from structure/overview.md.
  */
 
 const STAGES: readonly RequestFailureStage[] = REQUEST_FAILURE_STAGES;
