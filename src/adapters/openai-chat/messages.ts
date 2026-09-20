@@ -204,7 +204,13 @@ export function messagesToChatFormat(parsed: OcxParsedRequest, provider: OcxProv
             if (p.type === "video") return { type: "text", text: VIDEO_UNSUPPORTED_MARKER };
             return { type: "text", text: (p as OcxTextContent).text };
           });
-          chatMsg = { role: "user", content: chatParts };
+          // A developer message with images keeps the user-compatible shape it has always had on
+          // this wire. One carrying only a document has no such precedent, and demoting it would
+          // undo the role this adapter just finished preserving.
+          chatMsg = {
+            role: msg.role === "developer" && !hasImages ? developerWireRole : "user",
+            content: chatParts,
+          };
         }
         if (pendingToolCalls.length > 0) deferredBarrierMessages.push(chatMsg);
         else out.push(chatMsg);

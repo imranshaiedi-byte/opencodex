@@ -1,6 +1,6 @@
 // Type-only: erased at compile time, so this does not create an import cycle with the registry.
 import type { AdapterWire } from "./registry";
-import type { OcxContentPart, OcxParsedRequest } from "../types";
+import type { OcxMessage, OcxParsedRequest } from "../types";
 import { toolRestrictsCallers } from "../types";
 
 /**
@@ -34,6 +34,12 @@ export function unrepresentableDeclaration(parsed: OcxParsedRequest, wire: Adapt
   return undefined;
 }
 
-function carriesDocument(message: { content: string | readonly OcxContentPart[] }): boolean {
-  return typeof message.content !== "string" && message.content.some(part => part.type === "document");
+/**
+ * Typed structurally rather than as `OcxContentPart[]`: an assistant turn's content is
+ * `OcxAssistantContentPart[]`, which carries thinking and tool-call members and is not
+ * assignable to the user-content union. Only the discriminant is read here.
+ */
+function carriesDocument(message: OcxMessage): boolean {
+  const content: unknown = message.content;
+  return Array.isArray(content) && (content as ReadonlyArray<{ type: string }>).some(part => part.type === "document");
 }

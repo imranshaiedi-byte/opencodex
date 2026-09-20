@@ -161,4 +161,26 @@ describe("inline document bytes reach a wire that can hold them", () => {
       { type: "file", file: { file_data: PDF_DATA_URL, filename: "spec" } },
     ]);
   });
+
+  test("a developer turn carrying a document keeps its role", () => {
+    const parsed = {
+      modelId: "local-model",
+      context: {
+        messages: [{
+          role: "developer",
+          content: [{ type: "document", text: inlineDocumentMarker("spec"), mediaType: "application/pdf", data: PDF_BYTES, filename: "spec" }],
+          timestamp: 0,
+        }],
+      },
+      stream: false,
+      options: {},
+    } as unknown as OcxParsedRequest;
+    const outbound = JSON.parse(createOpenAIChatAdapter(chatProvider).buildRequest(parsed).body) as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(outbound.messages).toEqual([{
+      role: "developer",
+      content: [{ type: "file", file: { file_data: PDF_DATA_URL, filename: "spec" } }],
+    }]);
+  });
 });
