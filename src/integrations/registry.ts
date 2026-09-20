@@ -43,6 +43,8 @@ import {
   raycastConfigPath,
   zcodeConfigPath,
   zcodeHomeDir,
+  kiloConfigPath,
+  kiloHomeDir,
   type ExportClientId,
 } from "../clients/config-export";
 
@@ -306,6 +308,11 @@ export const INTEGRATION_CLIENTS: Record<IntegrationClientId, IntegrationClientS
     configPath: (env = process.env, home = homedir()) => clineConfigPath(env, home),
     detectDir: (env = process.env, home = homedir()) => clineSettingsDir(env, home),
     writerLock: { suffix: ".lock" },
+  },
+  kilo: {
+    id: "kilo",
+    configPath: (env = process.env, home = homedir()) => kiloConfigPath(env, home),
+    detectDir: (env = process.env, home = homedir()) => kiloHomeDir(env, home),
   },
 };
 

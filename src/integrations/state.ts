@@ -544,7 +544,9 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
     };
   }
 
-  const parsed = input.clientId === "cline" ? parseClineDocument(target.before) : parseConfig(target.before, exportSpec.format);
+  const parsed = input.clientId === "cline"
+    ? parseClineDocument(target.before)
+    : parseConfig(target.before, exportSpec.format, input.clientId === "kilo" ? { jsonc: true } : undefined);
   const contribution = exportSpec.buildContribution(exportContextOf(input));
   const record = store.readRecords()[input.clientId] ?? null;
   const { state, reason } = classifyIntegration({

@@ -123,6 +123,7 @@ const CLIENT_MANAGED_PATHS = {
     ["settings", "providers", OPENCODE_PROVIDER_ID],
     ["catalog", "providers", OPENCODE_PROVIDER_ID],
   ],
+  kilo: [["provider", OPENCODE_PROVIDER_ID]],
 } satisfies Record<IntegrationClientId, readonly (readonly string[])[]>;
 
 /** Not a configuration surface. Exported so a parity case can compare it against the shipped clients. */
@@ -673,7 +674,7 @@ function previewRestore(input: IntegrationWriteInput, request: PreviewRequest): 
       ? {}
       : observed.clientId === "cline"
         ? parseClineDocument(observed.before)
-        : parseConfig(observed.before, EXPORT_CLIENTS[observed.clientId].format),
+        : parseConfig(observed.before, EXPORT_CLIENTS[observed.clientId].format, observed.clientId === "kilo" ? { jsonc: true } : undefined),
     restore: {
       opId: observed.entry.opId,
       entry: observed.entry,
@@ -791,7 +792,9 @@ export function observeIntegration(input: IntegrationWriteInput, effects: Observ
     } as const;
   }
   const before = target.before;
-  const parsed = clientId === "cline" ? parseClineDocument(before) : parseConfig(before, exportSpec.format);
+  const parsed = clientId === "cline"
+    ? parseClineDocument(before)
+    : parseConfig(before, exportSpec.format, clientId === "kilo" ? { jsonc: true } : undefined);
   if (parsed === PARSE_FAILED) {
     return { failed: observationFailure("unsafe", "unsafe",
       `${configPath} could not be parsed, or holds something opencodex cannot rewrite without changing it (a non-finite number, a large integer or a tiny one a rewrite would round, -0, a duplicate member, or nesting deeper than 1000 levels)`) } as const;
