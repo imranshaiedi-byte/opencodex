@@ -270,7 +270,7 @@ function allowedToolsChoiceToResponses(choice: Rec): Rec {
   };
 }
 
-/** Hosted entries are named by their type alone; a function/custom entry must carry a name. */
+/** Hosted entries are named by their type alone; a function or custom entry must carry a name. */
 const HOSTED_ALLOWED_TOOL_TYPES = new Set([
   "web_search",
   "web_search_preview",
@@ -278,12 +278,17 @@ const HOSTED_ALLOWED_TOOL_TYPES = new Set([
   "image_gen",
   "tool_search",
 ]);
+const NAMED_ALLOWED_TOOL_TYPES = new Set(["function", "custom"]);
 
 function allowedToolEntryToResponses(raw: unknown): Rec {
   if (!isRec(raw)) {
     throw new ChatCompletionsRequestError("tool_choice.allowed_tools.tools entries must be objects");
   }
   const type = typeof raw.type === "string" && raw.type.length > 0 ? raw.type : "function";
+  if (!NAMED_ALLOWED_TOOL_TYPES.has(type) && !HOSTED_ALLOWED_TOOL_TYPES.has(type)) {
+    // An unknown selector kind is not a narrower subset, it is a subset nobody can evaluate.
+    throw new ChatCompletionsRequestError(`unsupported tool_choice.allowed_tools.tools entry type: ${type}`);
+  }
   const nested = isRec(raw[type]) ? raw[type] as Rec : undefined;
   const name = typeof raw.name === "string" && raw.name.length > 0
     ? raw.name

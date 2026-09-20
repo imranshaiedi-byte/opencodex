@@ -101,6 +101,13 @@ describe("chat tool_choice allowed_tools reaches the outbound request", () => {
     }))).toThrow(ChatCompletionsRequestError);
   });
 
+  test("a selector kind nobody can evaluate is refused", () => {
+    expect(() => chatCompletionsToResponsesBody(chatBody({
+      type: "allowed_tools",
+      allowed_tools: { mode: "required", tools: [{ type: "mcp", name: "tool_a" }] },
+    }))).toThrow(/unsupported tool_choice.allowed_tools.tools entry type/);
+  });
+
   test("the existing named and string choices are unchanged", () => {
     expect(chatCompletionsToResponsesBody(chatBody("required")).tool_choice).toBe("required");
     expect(chatCompletionsToResponsesBody(chatBody({ type: "function", function: { name: "tool_a" } })).tool_choice)

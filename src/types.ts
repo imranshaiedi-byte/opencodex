@@ -17,6 +17,7 @@ export {
   isAllowedToolChoice,
   toolChoiceToolPredicate,
   declaresCodeModeExec,
+  toolRestrictsCallers,
   NAMESPACED_BARE_ALIAS_EXCLUDED_NAMES,
 } from "./types/tools";
 

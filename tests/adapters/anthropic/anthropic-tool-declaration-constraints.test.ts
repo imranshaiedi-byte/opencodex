@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { createAnthropicAdapter } from "../../../src/adapters/anthropic";
-import { createGoogleAdapter } from "../../../src/adapters/google";
-import { createOpenAIChatAdapter } from "../../../src/adapters/openai-chat";
+import { createRegisteredAdapter } from "../../../src/adapters/registry";
 import { anthropicToResponsesBody } from "../../../src/claude/inbound";
 import { parseRequest } from "../../../src/responses/parser";
+import { createTestTranslatorBudget } from "../../helpers/translator-budget";
 import type { OcxParsedRequest, OcxProviderConfig } from "../../../src/types";
 
 /**
@@ -75,34 +75,38 @@ describe("anthropic tool declarations carry their caller-supplied constraints", 
 describe("wires without an allowed_callers counterpart refuse rather than widen", () => {
   const restricted = claudeTool({ allowed_callers: ["code_execution_20260120"] });
   const unrestricted = claudeTool({ allowed_callers: ["direct"] });
+  const incoming = { headers: new Headers(), translatorBudget: createTestTranslatorBudget() };
 
-  test("the OpenAI Chat wire refuses a caller-restricted declaration", () => {
-    const adapter = createOpenAIChatAdapter({
-      adapter: "openai-chat",
-      baseUrl: "https://gateway.example.internal/v1",
-      apiKey: "k",
-    });
-    expect(() => adapter.buildRequest(parsedFromClaude(restricted)))
-      .toThrow(/cannot express tools\[\]\.allowed_callers/);
-  });
-
-  test("the Gemini wire refuses a caller-restricted declaration", async () => {
-    const adapter = createGoogleAdapter({
-      adapter: "google",
-      baseUrl: "https://generativelanguage.googleapis.com",
-      apiKey: "key",
-    } as unknown as OcxProviderConfig);
-    await expect(adapter.buildRequest(parsedFromClaude(restricted)))
+  // The refusal is default-deny at the single guard every registered adapter passes through, so
+  // a wire that never learned about the field cannot quietly rebuild the declaration without it.
+  test.each([
+    ["openai-chat", { adapter: "openai-chat", baseUrl: "https://gateway.example.internal/v1", apiKey: "k" }],
+    ["google", { adapter: "google", baseUrl: "https://generativelanguage.googleapis.com", apiKey: "key" }],
+    ["cursor", { adapter: "cursor", baseUrl: "https://api2.cursor.sh", apiKey: "k" }],
+    ["devin", { adapter: "devin", baseUrl: "https://api.devin.ai", apiKey: "k" }],
+    ["ollama-native", { adapter: "ollama-native", baseUrl: "http://127.0.0.1:11434", keyOptional: true }],
+  ])("the %s wire refuses a caller-restricted declaration", async (_name, config) => {
+    const adapter = createRegisteredAdapter(config as unknown as OcxProviderConfig);
+    await expect(Promise.resolve().then(() => adapter.buildRequest(parsedFromClaude(restricted), incoming)))
       .rejects.toThrow(/cannot express tools\[\]\.allowed_callers/);
   });
 
+  test("the Anthropic wire is the one that carries it", async () => {
+    const adapter = createRegisteredAdapter(anthropicProvider);
+    const { body } = await adapter.buildRequest(parsedFromClaude(restricted), incoming);
+    const sent = JSON.parse(typeof body === "string" ? body : JSON.stringify(body)) as {
+      tools: Array<Record<string, unknown>>;
+    };
+    expect(sent.tools[0]!.allowed_callers).toEqual(["code_execution_20260120"]);
+  });
+
   test('the unrestricted ["direct"] default is not treated as a restriction', () => {
-    const adapter = createOpenAIChatAdapter({
+    const adapter = createRegisteredAdapter({
       adapter: "openai-chat",
       baseUrl: "https://gateway.example.internal/v1",
       apiKey: "k",
-    });
-    const built = JSON.parse(adapter.buildRequest(parsedFromClaude(unrestricted)).body) as {
+    } as unknown as OcxProviderConfig);
+    const built = JSON.parse((adapter.buildRequest(parsedFromClaude(unrestricted), incoming) as { body: string }).body) as {
       tools: Array<{ function: { name: string } }>;
     };
     expect(built.tools.map(tool => tool.function.name)).toEqual(["tool_a"]);

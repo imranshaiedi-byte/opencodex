@@ -18,7 +18,7 @@ function request(content: unknown[]): OcxParsedRequest {
   return parseRequest({ model: "test-model", input: [{ type: "message", role: "user", content }] });
 }
 
-function fakeAdapter() {
+function fakeAdapter(wire: "openai-chat" | "cursor" = "openai-chat") {
   const seen = { builds: 0, runs: 0, terminals: 0 };
   const adapter: ProviderAdapter = {
     name: "stub",
@@ -30,7 +30,7 @@ function fakeAdapter() {
     async runTurn(_parsed, _incoming, emit) { seen.runs++; emit({ type: "done", endTurn: true }); },
     localTerminal() { seen.terminals++; return { reason: "already answered" }; },
   };
-  return { adapter: withInputMediaGuard(adapter), seen };
+  return { adapter: withInputMediaGuard(adapter, wire), seen };
 }
 
 describe("typed input media inspection", () => {
@@ -58,6 +58,22 @@ describe("typed input media inspection", () => {
       expect(untranslatedResponsesInputMedia({ input: [{ type: "message", role, content: [INLINE_FILE] }] }))
         .toBe("file");
     }
+  });
+
+  test("a document still has to reach a wire that can hold its bytes", () => {
+    const incoming = { headers: new Headers(), translatorBudget: createTestTranslatorBudget() };
+    const carrier = fakeAdapter("openai-chat");
+    carrier.adapter.buildRequest(request([INLINE_FILE]), incoming);
+    expect(carrier.seen.builds).toBe(1);
+
+    // Cursor rebuilds user content as text, so admitting the bytes there would put the request
+    // upstream with only the marker and return a normal completion.
+    const nonCarrier = fakeAdapter("cursor");
+    let failure: unknown;
+    try { nonCarrier.adapter.buildRequest(request([INLINE_FILE]), incoming); } catch (error) { failure = error; }
+    expect((failure as Error).message).toContain("OpenCodex cannot translate document input");
+    expect((failure as Error).message).not.toContain("private.pdf");
+    expect(nonCarrier.seen.builds).toBe(0);
   });
 
   test("a base64 look-alike parameter is not an inline payload", () => {

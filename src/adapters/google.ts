@@ -16,7 +16,6 @@ import type {
 } from "../types";
 import { isAllowedToolChoice, namespacedToolName, resolveToolChoiceWireName, toolChoiceToolPredicate } from "../types";
 import type { OcxTool } from "../types";
-import { assertToolCallerRestrictionsRepresentable } from "./tool-declaration-constraints";
 import { contentPartsToText, parseDataUrl } from "./image";
 import { getVertexAccessToken } from "../lib/gcp-adc";
 import { fetchAntigravityWithRetry, fetchVertexWithRetry } from "./google-http";
@@ -476,7 +475,6 @@ function toolsToGeminiFormat(parsed: OcxParsedRequest): unknown[] | undefined {
   if (!parsed.context.tools?.length) return undefined;
   const tools = advertisedGeminiTools(parsed);
   if (tools.length === 0) return undefined;
-  assertToolCallerRestrictionsRepresentable(tools, "the Gemini generateContent wire");
   return [{
     functionDeclarations: tools.map(t => ({
       name: namespacedToolName(t.namespace, t.name),
