@@ -618,6 +618,7 @@
     "credential-redirect-guard.test.ts": "lib",
     "crusoe-provider.test.ts": "providers",
     "cursor-adapter.test.ts": "providers/cursor",
+    "cursor-roster-account-scope.test.ts": "providers/cursor",
     "cursor-continuity-retention.test.ts": "providers/cursor",
     "cursor-arg-normalize.test.ts": "providers/cursor",
     "cursor-blob-integrity.test.ts": "providers/cursor",

@@ -289,19 +289,21 @@ export async function fetchProviderModelsWithAuth(
   }
   if (prov.adapter === "devin") {
     if (!apiKey) return observed(configured, "degraded");
-    const cachedDevin = getFreshCached(name, ttlMs);
+    // Devin's usable-model list is entitlement-specific. Bind cache reads/writes to an
+    // irreversible credential fingerprint so a credential switch cannot observe another
+    // account's roster or stale fallback (the Qoder precedent above).
+    const authorityIdentity = createHash("sha256").update(apiKey).digest("hex");
+    const cachedDevin = getFreshCached(name, ttlMs, Date.now(), authorityIdentity);
     if (cachedDevin) {
       return observed(
         withConfiguredRetention(applyConfigHintsToCachedModels(name, prov, cachedDevin)),
         "authoritative",
       );
     }
-    if (isModelsFetchCoolingDown(name)) {
-      const cooling = getStaleCached(name);
+    const scopedStaleDevin = getStaleCached(name, authorityIdentity);
+    if (isModelsFetchCoolingDown(name) && scopedStaleDevin) {
       return observed(
-        withConfiguredRetention(
-          cooling ? applyConfigHintsToCachedModels(name, prov, cooling) : configured,
-        ),
+        withConfiguredRetention(applyConfigHintsToCachedModels(name, prov, scopedStaleDevin)),
         "degraded",
       );
     }
@@ -339,7 +341,7 @@ export async function fetchProviderModelsWithAuth(
         } as CatalogModel;
       });
       const forCache = withConfiguredRetention(result, { retainComboTargets: false });
-      if (!setCached(name, forCache, Date.now(), cacheGeneration)) {
+      if (!setCached(name, forCache, Date.now(), cacheGeneration, authorityIdentity)) {
         return observed(withConfiguredRetention(configured), "degraded");
       }
       markProviderDiscoveryOk(name, liveResult.models.length);
@@ -349,7 +351,7 @@ export async function fetchProviderModelsWithAuth(
       markModelsFetchFailure(name);
       markProviderDiscoveryFailed(name, { reason: liveResult.error === "auth" ? "provider" : "invalid_response" });
     }
-    const stale = getStaleCached(name);
+    const stale = getStaleCached(name, authorityIdentity);
     return observed(
       withConfiguredRetention(stale ? applyConfigHintsToCachedModels(name, prov, stale) : configured),
       "degraded",
@@ -361,18 +363,22 @@ export async function fetchProviderModelsWithAuth(
     // variants this PLAN can use. Keep the base-model UX (the request builder appends the effort
     // suffix) but filter the static seed to the bases the account actually has — so models not on the
     // plan (e.g. claude-fable-5) drop out instead of failing ERROR_BAD_MODEL_NAME. Fall back to the seed.
-    const cachedCursor = getFreshCached(name, ttlMs);
+    // The roster is entitlement-specific, so the cache entry is bound to an irreversible
+    // credential fingerprint: a credential switch must not observe the previous account's
+    // plan roster, its stale fallback, or its failure cooldown suppression.
+    const authorityIdentity = createHash("sha256").update(apiKey).digest("hex");
+    const cachedCursor = getFreshCached(name, ttlMs, Date.now(), authorityIdentity);
     if (cachedCursor) {
       return observed(
         withConfiguredRetention(applyConfigHintsToCachedModels(name, prov, cachedCursor, undefined, metadataModelIdCaseFold, captured.effectiveAlias)),
         "authoritative",
       );
     }
-    if (isModelsFetchCoolingDown(name)) {
-      const cooling = getStaleCached(name);
+    const scopedStaleCursor = getStaleCached(name, authorityIdentity);
+    if (isModelsFetchCoolingDown(name) && scopedStaleCursor) {
       return observed(
         withConfiguredRetention(
-          cooling ? applyConfigHintsToCachedModels(name, prov, cooling, undefined, metadataModelIdCaseFold, captured.effectiveAlias) : configured,
+          applyConfigHintsToCachedModels(name, prov, scopedStaleCursor, undefined, metadataModelIdCaseFold, captured.effectiveAlias),
         ),
         "degraded",
       );
@@ -394,7 +400,7 @@ export async function fetchProviderModelsWithAuth(
       // Cache the discovery-filtered roster without combo retention so a later
       // gather can re-apply the current capture's retain set on read.
       const forCache = withConfiguredRetention(result, { retainComboTargets: false });
-      if (!setCached(name, forCache, Date.now(), cacheGeneration)) {
+      if (!setCached(name, forCache, Date.now(), cacheGeneration, authorityIdentity)) {
         return observed(withConfiguredRetention(configured), "degraded");
       }
       // Publish roster-derived state only for a discovery the cache accepted: a stale
@@ -415,7 +421,7 @@ export async function fetchProviderModelsWithAuth(
         `[opencodex] Cursor model discovery for "${name}" failed [${liveResult.error}]${liveResult.detail ? `: ${liveResult.detail}` : ""}; using stale/static catalog degradation.`,
       );
     }
-    const staleCursor = getStaleCached(name);
+    const staleCursor = getStaleCached(name, authorityIdentity);
     return observed(
       withConfiguredRetention(
         staleCursor ? applyConfigHintsToCachedModels(name, prov, staleCursor, undefined, metadataModelIdCaseFold, captured.effectiveAlias) : configured,
