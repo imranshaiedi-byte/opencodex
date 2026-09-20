@@ -516,8 +516,11 @@ export function observeRestore(
   }
   const configPath = entry.configPath;
   // An undo acts on the path the operation was journaled against. A row recorded for one home must
-  // never be allowed to rewrite a file in another.
-  if (resolved.configPath !== configPath) {
+  // never be allowed to rewrite a file in another. The bindsDriftedRecord exception is the same
+  // one the writer takes: a journaled candidate of a first-EXISTING resolver (Kilo) restores
+  // against the journaled file even after priority discovery has moved on.
+  if (resolved.configPath !== configPath
+    && INTEGRATION_CLIENTS[clientId].bindsDriftedRecord?.(configPath, input.env, input.home) !== true) {
     return {
       failed: observationFailure("conflict", "conflict", "that operation was recorded for a different location"),
     } as const;
