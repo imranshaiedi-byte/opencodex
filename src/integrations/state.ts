@@ -530,8 +530,14 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
      * would let the badge and the switch disagree.
      */
     record = store.readRecords()[input.clientId] ?? null;
+    const recordedPath = record?.clientId === input.clientId
+      && record.configPath !== paths.configPath
+      && io.statKind(record.configPath) === "file"
+      && spec.bindsDriftedRecord?.(record.configPath, input.env, input.home) === true
+      ? record.configPath
+      : paths.configPath;
     effective = resolveIntegrationTarget({
-      clientId: input.clientId, configPath: paths.configPath, io, record, env: input.env, home: input.home,
+      clientId: input.clientId, configPath: recordedPath, io, record, env: input.env, home: input.home,
     });
   } catch (error) {
     if (!(error instanceof ClientPathError)) throw error;

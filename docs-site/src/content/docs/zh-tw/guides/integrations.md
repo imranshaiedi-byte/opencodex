@@ -22,7 +22,7 @@ description: 從儀表板把 opencodex 連接到 OpenCode、Pi、OMP、Hermes、
 | Raycast | `~/.config/raycast/ai/providers.yaml` | YAML | 儲存後立即生效——Raycast 會監看該檔案 | 無——僅限 loopback |
 | omo | `~/.omo/agent/models.json` | JSON | 新工作階段 | loopback 佔位符 |
 | Cline CLI | `~/.cline/data/settings/providers.json` + `models.json` | JSON | 結束並重新啟動後 | 僅限 loopback |
-| Kilo | `~/.config/kilo` 下最先存在的 `kilo.jsonc`、`kilo.json`、`opencode.jsonc`、`opencode.json` 或 `config.json` | JSONC | 新工作階段 | `OPENCODEX_KILO_API_KEY` |
+| Kilo | `~/.config/kilo` 下最先存在的 `kilo.jsonc`、`kilo.json`、`opencode.jsonc`、`opencode.json` 或 `config.json`（`XDG_CONFIG_HOME` 會移動該目錄；若都不存在則建立 `kilo.jsonc`） | JSONC | 新工作階段 | `OPENCODEX_KILO_API_KEY` |
 
 具有受支援推理強度階梯的 GJC 模型會匯出 `reasoning: true`、`thinking.levels` 與 `compat.supportsReasoningEffort`，讓 GJC 提供強度選擇。原生 Codex 模型即使未在目錄中列出階梯，也會取得標準階梯。沒有已知階梯的模型會省略這些欄位；`none` 不傳送強度，`ultra` 在傳輸時會折疊成 `max`，因此不會列為選項。重新整理整合即可更新模型選項。
 
@@ -205,7 +205,7 @@ ocx integration client restore --op <operation-id>
 
 ## Kilo
 
-Kilo 只會把 `provider.opencodex` 寫入 `~/.config/kilo` 下最先存在的全域檔。其他鍵保持不變。套用會重寫整個檔案，因此不會保留註解與尾隨逗號。請在 Kilo 中選擇 `opencodex/<模型>`。
+Kilo 只會把 `provider.opencodex` 寫入 `~/.config/kilo` 下最先存在的全域檔（`XDG_CONFIG_HOME` 會移動該目錄；若沒有任何候選檔則建立 `kilo.jsonc`）。其他鍵保持不變。套用會重寫整個檔案，因此不會保留註解與尾隨逗號。請在 Kilo 中選擇 `opencodex/<模型>`。
 
 ```bash
 ocx integration client enable --client kilo

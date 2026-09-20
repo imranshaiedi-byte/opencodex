@@ -851,6 +851,12 @@ export function observeIntegration(input: IntegrationWriteInput, effects: Observ
      * target is known, because that is the path it has to match.
      */
     stored = store.readRecords()[clientId] ?? null;
+    const recordedPath = stored?.clientId === clientId
+      && stored.configPath !== resolved.configPath
+      && io.statKind(stored.configPath) === "file"
+      && spec.bindsDriftedRecord?.(stored.configPath, input.env, input.home) === true
+      ? stored.configPath
+      : resolved.configPath;
     /*
      * Inside the same guard as resolution, because this resolver can refuse the
      * same way: the store is named by a client env var, and a relative one is a
@@ -858,7 +864,7 @@ export function observeIntegration(input: IntegrationWriteInput, effects: Observ
      * collection route.
      */
     effective = resolveIntegrationTarget({
-      clientId, configPath: resolved.configPath, io, record: stored, env: input.env, home: input.home,
+      clientId, configPath: recordedPath, io, record: stored, env: input.env, home: input.home,
     });
     configPath = effective.configPath;
   } catch (error) {

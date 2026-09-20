@@ -24,7 +24,7 @@ yapılandırma dosyasına yazar ve tekrar kaldırır. On altı istemci bu şekil
 | Raycast | `~/.config/raycast/ai/providers.yaml` | YAML | kaydedildiği anda — Raycast dosyayı izler | yok — yalnızca geri döngü |
 | omo | `~/.omo/agent/models.json` | JSON | yeni oturumlarda | geri döngü yer tutucusu |
 | Cline CLI | `~/.cline/data/settings/providers.json` + `models.json` | JSON | kapatıp yeniden başlattıktan sonra | yalnızca loopback |
-| Kilo | `~/.config/kilo` altında ilk bulunan `kilo.jsonc`, `kilo.json`, `opencode.jsonc`, `opencode.json` veya `config.json` | JSONC | yeni oturumlarda | `OPENCODEX_KILO_API_KEY` |
+| Kilo | `~/.config/kilo` altında ilk bulunan `kilo.jsonc`, `kilo.json`, `opencode.jsonc`, `opencode.json` veya `config.json` (`XDG_CONFIG_HOME` bu dizini taşır; hiçbiri yoksa `kilo.jsonc` oluşturulur) | JSONC | yeni oturumlarda | `OPENCODEX_KILO_API_KEY` |
 
 Desteklenen akıl yürütme düzeylerine sahip GJC modelleri, GJC'nin düzey seçimi sunabilmesi için `reasoning: true`, `thinking.levels` ve `compat.supportsReasoningEffort` alanlarını dışa aktarır. Yerel Codex modelleri, katalogda belirtilmese bile standart düzeylerini alır. Bilinen düzeyi olmayan modellerde bu alanlar bulunmaz. `none` düzey göndermez ve `ultra` gönderimde `max` düzeyine dönüşür; bu yüzden seçeneklerde yer almazlar. Model seçeneklerini güncellemek için entegrasyonu yenileyin.
 
@@ -328,7 +328,7 @@ ocx integration client restore --op <operation-id>
 
 ## Kilo
 
-Kilo yalnızca `~/.config/kilo` altındaki ilk mevcut genel dosyada `provider.opencodex` yazar. Diğer anahtarlar değişmez. Uygula dosyanın tamamını yeniden yazar; yorumlar ve sondaki virgüller korunmaz. Kilo’da `opencodex/<model>` seçin.
+Kilo yalnızca `~/.config/kilo` altındaki ilk mevcut genel dosyada `provider.opencodex` yazar (`XDG_CONFIG_HOME` bu dizini taşır; hiçbir aday yoksa `kilo.jsonc` oluşturulur). Diğer anahtarlar değişmez. Uygula dosyanın tamamını yeniden yazar; yorumlar ve sondaki virgüller korunmaz. Kilo’da `opencodex/<model>` seçin.
 
 ```bash
 ocx integration client enable --client kilo
