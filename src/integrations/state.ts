@@ -572,7 +572,7 @@ export function readIntegrationState(input: IntegrationStateInput): IntegrationS
 
   const parsed = input.clientId === "cline"
     ? parseClineDocument(loaded.before)
-    : parseConfig(loaded.before, effective.format);
+    : parseConfig(loaded.before, effective.format, input.clientId === "kilo" ? { jsonc: true } : undefined);
   const contribution = effective.buildContribution(exportContextOf(input));
   const { state, reason } = classifyIntegration({
     fileText: loaded.before,
