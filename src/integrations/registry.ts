@@ -403,6 +403,38 @@ export function boundIntegrationConfigPath(input: {
   return input.resolvedPath;
 }
 
+/**
+ * Why a historical restore must not run, or null when it may.
+ *
+ * Kilo keeps one ownership record and may legally have written more than one
+ * candidate. Treating every same-home journaled path as a restore target lets
+ * an undo of an older file commit that file's prior record over the candidate
+ * that owns the integration now. The managed block in the current file stays
+ * on disk, the record points at the old file, and a later disable drops the
+ * record and orphans the newcomer.
+ *
+ * A missing current record is not a collision: undoing the disable that
+ * dropped it still restores the journaled file. A client without
+ * bindsDriftedRecord is unchanged, because that seam is what made the second
+ * candidate a legal target. Direct restore and its preview both ask here, so
+ * they cannot admit different answers.
+ */
+export function restoreOwnershipCollision(input: {
+  clientId: IntegrationClientId;
+  journaledPath: string;
+  currentPath: string | null;
+  env?: NodeJS.ProcessEnv;
+  home?: string;
+}): string | null {
+  const currentPath = input.currentPath;
+  if (currentPath === null || currentPath === input.journaledPath) return null;
+  const binds = INTEGRATION_CLIENTS[input.clientId].bindsDriftedRecord;
+  if (!binds) return null;
+  if (binds(input.journaledPath, input.env, input.home) !== true) return null;
+  if (binds(currentPath, input.env, input.home) !== true) return null;
+  return `that operation was recorded for ${input.journaledPath}, but ${currentPath} currently owns this integration`;
+}
+
 export function isIntegrationClientId(value: string): value is IntegrationClientId {
   return Object.prototype.hasOwnProperty.call(INTEGRATION_CLIENTS, value);
 }

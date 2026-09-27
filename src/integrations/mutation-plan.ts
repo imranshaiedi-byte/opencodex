@@ -29,6 +29,7 @@ import {
   boundIntegrationConfigPath,
   isLoopbackOnly,
   resolveIntegrationPaths,
+  restoreOwnershipCollision,
   type IntegrationClientId,
 } from "./registry";
 import { declaredIntegrationTarget, resolveIntegrationTarget, type IntegrationTarget } from "./target";
@@ -583,6 +584,22 @@ export function observeRestore(
     return {
       failed: observationFailure("conflict", "conflict", "that operation was recorded for a different location"),
     } as const;
+  }
+  /*
+   * A legal historical path is not enough. Another candidate can already own
+   * the single record, and committing this row's prior record would orphan the
+   * block that candidate still holds. Direct restore asks the same question.
+   */
+  const currentOwner = store.readRecords()[clientId] ?? null;
+  const collision = restoreOwnershipCollision({
+    clientId,
+    journaledPath: configPath,
+    currentPath: currentOwner && currentOwner.clientId === clientId ? currentOwner.configPath : null,
+    env: input.env,
+    home: input.home,
+  });
+  if (collision !== null) {
+    return { failed: observationFailure("conflict", "conflict", collision) } as const;
   }
   if (clientId === "cline") {
     try { io = createClineIO(io, configPath, store, effects.recover); }

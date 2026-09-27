@@ -394,6 +394,13 @@ discovery resumes only once the record is dropped. A record from a
 different home never binds, preserving the audit contract that a record for one home
 cannot authorize a write to another.
 
+Restore of a journaled candidate stays legal while that file is the current owner, and
+while no record owns the client (undoing the disable that dropped the record). It is
+refused, by both direct restore and preview, when a different Kilo candidate currently
+holds the single ownership record. Committing the older row's prior record would point
+ownership back at the old file and leave the active block on disk with nothing to
+disable it.
+
 ## Cline paired files
 
 Cline CLI uses `providers.json` for connection settings and sibling `models.json` for its

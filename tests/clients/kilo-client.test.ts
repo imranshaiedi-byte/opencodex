@@ -324,4 +324,65 @@ describe("kilo JSONC apply/disable/restore", () => {
     expect(readFileSync(ownedPath, "utf8")).toContain(OPENCODE_PROVIDER_ID);
     expect(readFileSync(newcomer, "utf8")).toBe(newcomerText);
   });
+
+  test("refuses a historical restore once another candidate owns the integration", () => {
+    /*
+     * apply config.json, then a higher-priority kilo.jsonc appears, disable
+     * drops the old record, and a fresh apply owns kilo.jsonc. Restoring the
+     * historical disable would put config.json's prior record back into the
+     * single slot while kilo.jsonc still holds the live block. Later disable
+     * would then drop that record and orphan the newcomer. Both restore paths
+     * refuse, and the live file stays the one disable removes.
+     */
+    const spec = INTEGRATION_CLIENTS.kilo;
+    const dir = spec.detectDir({}, home);
+    mkdirSync(dir, { recursive: true });
+    const ownedPath = join(dir, "config.json");
+    writeFileSync(ownedPath, "{}\n");
+
+    const write = {
+      clientId: "kilo" as const,
+      models: context().models,
+      config: LOOPBACK,
+      port: 10100,
+      env: {} as NodeJS.ProcessEnv,
+      home,
+      store,
+    };
+    expect(applyIntegration(write).ok).toBe(true);
+
+    const newcomer = join(dir, "kilo.jsonc");
+    const newcomerText = '{ "model": "keep" }\n';
+    writeFileSync(newcomer, newcomerText);
+    expect(disableIntegration(write).ok).toBe(true);
+    const disableOp = store.listOperations("kilo").find(op => op.kind === "disable" && op.configPath === ownedPath);
+    expect(disableOp).toBeDefined();
+
+    expect(applyIntegration(write).ok).toBe(true);
+    expect(store.readRecords().kilo?.configPath).toBe(newcomer);
+    const live = readFileSync(newcomer, "utf8");
+    expect(live).toContain(OPENCODE_PROVIDER_ID);
+    const retired = readFileSync(ownedPath, "utf8");
+    expect(retired).not.toContain(OPENCODE_PROVIDER_ID);
+
+    const preview = previewIntegration(write, { operation: "restore", opId: disableOp!.opId });
+    expect(preview.canApply).toBe(false);
+    expect(preview.refusalReason).toBe("conflict");
+
+    const restored = restoreIntegration({ ...write, opId: disableOp!.opId });
+    expect(restored.ok).toBe(false);
+    if (restored.ok) return;
+    expect(restored.reason).toBe("conflict");
+    expect(restored.message).toContain(newcomer);
+    expect(readFileSync(newcomer, "utf8")).toBe(live);
+    expect(readFileSync(ownedPath, "utf8")).toBe(retired);
+    expect(store.readRecords().kilo?.configPath).toBe(newcomer);
+
+    const disabled = disableIntegration(write);
+    expect(disabled.ok).toBe(true);
+    const after = JSON.parse(readFileSync(newcomer, "utf8")) as { provider?: Record<string, unknown> };
+    expect(after.provider?.[OPENCODE_PROVIDER_ID]).toBeUndefined();
+    expect(readFileSync(ownedPath, "utf8")).toBe(retired);
+    expect(store.readRecords().kilo).toBeUndefined();
+  });
 });
