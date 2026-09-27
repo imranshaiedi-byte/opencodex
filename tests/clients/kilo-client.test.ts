@@ -47,6 +47,15 @@ function context(config: OcxConfig = LOOPBACK): ExportContext {
 }
 
 describe("kilo client config", () => {
+  test("uses the model output limit in Kilo's context metadata", () => {
+    const document = buildClientConfig("kilo", {
+      ...context(),
+      models: [{ namespaced: "custom/limited", provider: "custom", id: "limited", contextWindow: 100_000, maxTokens: 8_192 }],
+    }) as KiloGeneratedConfig;
+    expect(document.provider[OPENCODE_PROVIDER_ID]?.models["custom/limited"]?.limit)
+      .toEqual({ context: 100_000, output: 8_192 });
+  });
+
   test("emits a V1-only document with Kilo's schema and npm package", () => {
     const document = buildClientConfig("kilo", context()) as KiloGeneratedConfig;
     expect(document.$schema).toBe(KILO_CONFIG_SCHEMA);

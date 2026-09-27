@@ -34,7 +34,6 @@ import {
 import {
   INTEGRATION_CLIENTS,
   boundIntegrationConfigPath,
-  boundIntegrationConfigPath,
   resolveIntegrationPaths,
   unresolvedPathHintFor,
   type IntegrationClientId,

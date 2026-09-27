@@ -70,7 +70,7 @@ function kiloProviderBlock(ctx: ExportContext): KiloProviderBlock {
     const entry: KiloModelEntry = { name: exportModelLabel(model) };
     const context = authoritativeContextWindow(model.contextWindow);
     if (context !== undefined) {
-      entry.limit = { context, output: outputBudgetFor(context) };
+      entry.limit = { context, output: outputBudgetFor(context, model) };
     }
     const capabilities = opencodeModelCapabilities(model.inputModalities);
     if (capabilities) {
