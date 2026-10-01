@@ -453,25 +453,66 @@ function clientEnv(home: string): Record<string, string> {
 /** Capture a bounded client run; termination errors must never masquerade as success. */
 export async function spawnClient(bin: string, args: string[], env: Record<string, string>, cwd: string, timeoutMs: number): Promise<ClientRunResult> {
   const proc = Bun.spawn([bin, ...args], { env, cwd, stdout: "pipe", stderr: "pipe" });
+  return collectClientRun(proc, timeoutMs);
+}
+
+/** Minimal subprocess contract lets deadline failures be tested without leaking real children. */
+interface ClientProcess {
+  stdout: ReadableStream<Uint8Array>;
+  stderr: ReadableStream<Uint8Array>;
+  exited: Promise<number>;
+  kill(signal: number): void;
+}
+
+/** Bound output collection even when termination fails or inherited pipes never close. */
+export async function collectClientRun(proc: ClientProcess, timeoutMs: number, terminationGraceMs = 5_000): Promise<ClientRunResult> {
   let timedOut = false;
   let terminationFailed = false;
+  let stdout = "";
+  let stderr = "";
+  let graceTimer: ReturnType<typeof setTimeout> | undefined;
+  let expire: () => void = () => undefined;
+  const deadline = new Promise<undefined>(resolve => { expire = () => resolve(undefined); });
   const timer = setTimeout(() => {
     timedOut = true;
+    graceTimer = setTimeout(expire, terminationGraceMs);
     try {
       proc.kill(9);
     } catch {
       terminationFailed = true;
     }
   }, timeoutMs);
-  const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
-  const code = await proc.exited;
-  clearTimeout(timer);
-  return {
-    code: terminationFailed ? -1 : code,
-    stdout,
-    stderr: terminationFailed ? `${stderr}\nClient termination failed.` : stderr,
-    timedOut,
-  };
+  try {
+    const done = Promise.all([
+      new Response(proc.stdout).text().then(value => { stdout = value; }),
+      new Response(proc.stderr).text().then(value => { stderr = value; }),
+      proc.exited,
+    ]);
+    const result = await Promise.race([done, deadline]);
+    const diagnostic = terminationFailed ? "Client termination failed."
+      : result === undefined ? "Client output/exit deadline exceeded after termination." : undefined;
+    return {
+      code: diagnostic || result === undefined ? -1 : result[2],
+      stdout,
+      stderr: diagnostic ? `${stderr}\n${diagnostic}` : stderr,
+      timedOut,
+    };
+  } catch {
+    try {
+      proc.kill(9);
+    } catch {
+      terminationFailed = true;
+    }
+    return {
+      code: -1,
+      stdout,
+      stderr: `${stderr}\nClient output collection failed.${terminationFailed ? " Client termination failed." : ""}`,
+      timedOut,
+    };
+  } finally {
+    clearTimeout(timer);
+    if (graceTimer !== undefined) clearTimeout(graceTimer);
+  }
 }
 
 /** Run the supplied OpenCode binary against an isolated global config and projects. */

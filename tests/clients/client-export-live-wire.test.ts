@@ -59,6 +59,7 @@ import {
   sanitizeEvidence,
   startLiveWireUpstream,
   spawnClient,
+  collectClientRun,
 } from "../helpers/client-export-live-wire";
 
 const OC_BIN = resolveOptInBin(process.env.OCX_TEST_OPENCODE_BIN);
@@ -89,6 +90,47 @@ describe("live-wire harness subprocess outcomes", () => {
     const run = await spawnClient(process.execPath, ["--eval", 'setInterval(() => {}, 1000)'], {}, process.cwd(), 100);
     expect(run.timedOut).toBe(true);
     expect(run.code).not.toBe(0);
+  });
+
+  test("kill failure cannot hang output or exit collection", async () => {
+    const run = await collectClientRun({
+      stdout: new ReadableStream(),
+      stderr: new ReadableStream(),
+      exited: new Promise(() => undefined),
+      kill() { throw new Error("synthetic kill failure"); },
+    }, 10, 10);
+    expect(run.timedOut).toBe(true);
+    expect(run.code).toBe(-1);
+    expect(run.stderr).toContain("Client termination failed.");
+  });
+
+  test("a successful kill cannot hang on inherited open pipes", async () => {
+    let kills = 0;
+    const run = await collectClientRun({
+      stdout: new ReadableStream(),
+      stderr: new ReadableStream(),
+      exited: Promise.resolve(0),
+      kill() { kills++; },
+    }, 10, 10);
+    expect(kills).toBe(1);
+    expect(run.code).toBe(-1);
+    expect(run.timedOut).toBe(true);
+    expect(run.stderr).toContain("deadline exceeded");
+  });
+
+  test("output failure clears the original timeout instead of killing again later", async () => {
+    let kills = 0;
+    const run = await collectClientRun({
+      stdout: new ReadableStream({ start(controller) { controller.error(new Error("synthetic output failure")); } }),
+      stderr: new ReadableStream({ start(controller) { controller.close(); } }),
+      exited: Promise.resolve(0),
+      kill() { kills++; },
+    }, 10, 10);
+    expect(run.code).toBe(-1);
+    expect(run.timedOut).toBe(false);
+    expect(run.stderr).toContain("Client output collection failed.");
+    await Bun.sleep(30);
+    expect(kills).toBe(1);
   });
 });
 
