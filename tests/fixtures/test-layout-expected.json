@@ -1,4 +1,9 @@
 {
+  "opencode-kilo-refresh.test.ts": "clients",
+  "client-export-reasoning-metadata.test.ts": "clients",
+  "client-export-reasoning-controls.test.ts": "clients",
+  "client-export-live-wire.test.ts": "clients",
+  "client-export-effective-metadata.test.ts": "clients",
   "claude-devin-output-order.test.ts": "claude-integration",
   "codex-config-preservation.test.ts": "codex-integration",
     "codex-credits.test.ts": "codex-integration",
