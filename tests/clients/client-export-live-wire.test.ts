@@ -58,6 +58,7 @@ import {
   rolesOf,
   sanitizeEvidence,
   startLiveWireUpstream,
+  spawnClient,
 } from "../helpers/client-export-live-wire";
 
 const OC_BIN = resolveOptInBin(process.env.OCX_TEST_OPENCODE_BIN);
@@ -68,6 +69,28 @@ const UPSTREAM_TIMEOUT = 240_000;
 function since(upstream: LiveWireUpstream, mark: number): CapturedChatRequest[] {
   return upstream.requests.slice(mark);
 }
+
+describe("live-wire harness subprocess outcomes", () => {
+  test("captures success without inventing a timeout", async () => {
+    const run = await spawnClient(process.execPath, ["--eval", 'console.log("harness-ok")'], {}, process.cwd(), 5_000);
+    expect(run.code).toBe(0);
+    expect(run.stdout.trim()).toBe("harness-ok");
+    expect(run.timedOut).toBe(false);
+  });
+
+  test("preserves a child failure and its diagnostic", async () => {
+    const run = await spawnClient(process.execPath, ["--eval", 'console.error("harness-failure");process.exit(3)'], {}, process.cwd(), 5_000);
+    expect(run.code).toBe(3);
+    expect(run.stderr.trim()).toBe("harness-failure");
+    expect(run.timedOut).toBe(false);
+  });
+
+  test("terminates a child that exceeds its budget and cannot report success", async () => {
+    const run = await spawnClient(process.execPath, ["--eval", 'setInterval(() => {}, 1000)'], {}, process.cwd(), 100);
+    expect(run.timedOut).toBe(true);
+    expect(run.code).not.toBe(0);
+  });
+});
 
 // ===========================================================================
 // OpenCode (@opencode/cli)

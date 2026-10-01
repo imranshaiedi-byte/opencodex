@@ -54,14 +54,17 @@ interface Chunk {
   usage?: unknown;
 }
 
+/** Build one deterministic OpenAI-compatible streaming delta. */
 function chunk(delta: Record<string, unknown>, finish: string | null = null, index = 0): Chunk {
   return { id: "chatcmpl-livewire", object: "chat.completion.chunk", choices: [{ index, delta, finish_reason: finish }] };
 }
 
+/** End a fixture stream with stable token usage, independent of the client. */
 function usageChunk(): Chunk {
   return { id: "chatcmpl-livewire", object: "chat.completion.chunk", choices: [], usage: { prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 } };
 }
 
+/** Emit a complete answer, optionally exposing reasoning and the received effort. */
 function textTurn(marker: string, opts: { reasoning?: boolean; effortEcho?: unknown } = {}): Chunk[] {
   const out: Chunk[] = [];
   if (opts.reasoning) out.push(chunk({ role: "assistant", reasoning_content: `REASONING(${marker})` }));
@@ -71,6 +74,7 @@ function textTurn(marker: string, opts: { reasoning?: boolean; effortEcho?: unkn
   return out;
 }
 
+/** Ask the client to execute its read tool while retaining assistant reasoning. */
 function toolCallTurn(args: Record<string, unknown>): Chunk[] {
   return [
     chunk({ role: "assistant", reasoning_content: "REASONING(tool)" }),
@@ -93,6 +97,7 @@ export interface LiveWireUpstream {
   stop(): void;
 }
 
+/** Start a loopback-only scripted upstream and capture requests for wire assertions. */
 export function startLiveWireUpstream(): LiveWireUpstream {
   const requests: CapturedChatRequest[] = [];
   const forcedTool = new Map<string, Record<string, unknown>>();
@@ -181,6 +186,7 @@ export const ALPHA = "ocxmock/alpha-ladder";
 export const BRAVO = "ocxmock/bravo-fixed";
 export const DELTA = "ocxmock/delta-plain";
 
+/** Return fresh adjustable, fixed-reasoning and unknown-capability model fixtures. */
 export function liveWireExportModels(): ExportModel[] {
   return [
     {
@@ -246,6 +252,7 @@ export const KILO_SUPPRESS_VARIANTS: Record<string, { disabled: true }> = {
 
 const FIXTURES = liveWireExportModels();
 
+/** Use the production label policy without duplicating it in shape fixtures. */
 function modelName(index: number): string {
   return exportModelLabel(FIXTURES[index]!);
 }
@@ -411,6 +418,7 @@ export interface ClientHarness {
 
 const SCRATCH_BASE = process.env.OCX_TEST_LIVE_SCRATCH ?? join(tmpdir(), "ocx-live-wire");
 
+/** Create disposable client homes, caches and projects under the test-owned root. */
 function makeTree(root: string): { home: string; base: string } {
   const home = join(root, "home");
   mkdirSync(join(home, ".config", "opencode"), { recursive: true });
@@ -422,6 +430,7 @@ function makeTree(root: string): { home: string; base: string } {
   return { home, base: root };
 }
 
+/** Supply isolated homes and synthetic credentials without inheriting real secrets. */
 function clientEnv(home: string): Record<string, string> {
   return {
     PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
@@ -441,21 +450,31 @@ function clientEnv(home: string): Record<string, string> {
   };
 }
 
-async function spawnClient(bin: string, args: string[], env: Record<string, string>, cwd: string, timeoutMs: number): Promise<ClientRunResult> {
+/** Capture a bounded client run; termination errors must never masquerade as success. */
+export async function spawnClient(bin: string, args: string[], env: Record<string, string>, cwd: string, timeoutMs: number): Promise<ClientRunResult> {
   const proc = Bun.spawn([bin, ...args], { env, cwd, stdout: "pipe", stderr: "pipe" });
   let timedOut = false;
+  let terminationFailed = false;
   const timer = setTimeout(() => {
     timedOut = true;
     try {
       proc.kill(9);
-    } catch {}
+    } catch {
+      terminationFailed = true;
+    }
   }, timeoutMs);
   const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
   const code = await proc.exited;
   clearTimeout(timer);
-  return { code, stdout, stderr, timedOut };
+  return {
+    code: terminationFailed ? -1 : code,
+    stdout,
+    stderr: terminationFailed ? `${stderr}\nClient termination failed.` : stderr,
+    timedOut,
+  };
 }
 
+/** Run the supplied OpenCode binary against an isolated global config and projects. */
 export function openCodeHarness(bin: string, name: string): ClientHarness & { writeGlobalConfig(doc: unknown): void } {
   mkdirSync(SCRATCH_BASE, { recursive: true });
   const root = mkdtempSync(join(SCRATCH_BASE, `opencode-${name}-`));
@@ -487,6 +506,7 @@ export function openCodeHarness(bin: string, name: string): ClientHarness & { wr
   };
 }
 
+/** Run the supplied Kilo binary against an isolated global config and projects. */
 export function kiloHarness(bin: string, name: string): ClientHarness & { writeGlobalConfig(doc: unknown): void } {
   mkdirSync(SCRATCH_BASE, { recursive: true });
   const root = mkdtempSync(join(SCRATCH_BASE, `kilo-${name}-`));
@@ -522,24 +542,29 @@ export function kiloHarness(bin: string, name: string): ClientHarness & { writeG
 // Capture inspection helpers
 // ---------------------------------------------------------------------------
 
+/** Read conversation roles in wire order, treating a missing conversation as empty. */
 export function rolesOf(body: any): string[] {
   return (body?.messages ?? []).map((m: any) => m?.role);
 }
 
+/** Inspect the effort actually sent upstream, not the client's configured preference. */
 export function reasoningEffortOf(body: any): unknown {
   return body?.reasoning_effort;
 }
 
+/** Find tool results replayed by the client after an upstream tool call. */
 export function findToolMessages(body: any): any[] {
   return (body?.messages ?? []).filter((m: any) => m?.role === "tool");
 }
 
+/** Extract textual reasoning replay from the first assistant history message. */
 export function assistantReasoningReplay(body: any, field: string): unknown {
   const assistant = (body?.messages ?? []).find((m: any) => m?.role === "assistant");
   const value = assistant?.[field];
   return typeof value === "string" ? value : undefined;
 }
 
+/** Check whether an image survived client serialization into the upstream request. */
 export function hasImagePart(body: any): boolean {
   for (const m of body?.messages ?? []) {
     const content = m?.content;
