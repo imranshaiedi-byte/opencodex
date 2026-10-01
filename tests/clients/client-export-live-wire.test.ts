@@ -345,10 +345,17 @@ describe.skipIf(!KILO_BIN)("kilo export live wire (opt-in: OCX_TEST_KILO_BIN)", 
   test("reasoning_content from turn one is replayed on the assistant message in turn two", async () => {
     const project = client.freshProject("kilo-replay");
     upstream.reset();
-    const first = await client.run(["run", "-m", `opencodex/${ALPHA}`, "remember the passphrase"], { project });
+    // Pin the session and title: --continue can select another session, and deferred
+    // title-generation requests can otherwise masquerade as the final conversation turn.
+    const first = await client.run([
+      "run", "--format", "json", "--title", "live-wire reasoning replay",
+      "-m", `opencodex/${ALPHA}`, "remember the passphrase",
+    ], { project });
     expect(first.code).toBe(0);
+    const sessionID = first.stdout.match(/"sessionID"\s*:\s*"([^"]+)"/)?.[1];
+    expect(sessionID).toBeDefined();
     const mark = upstream.requests.length;
-    const second = await client.run(["run", "--continue", "-m", `opencodex/${ALPHA}`, "what was it"], { project });
+    const second = await client.run(["run", "--session", sessionID!, "-m", `opencodex/${ALPHA}`, "what was it"], { project });
     expect(second.code).toBe(0);
     const turn = lastRealTurn(since(upstream, mark));
     expect(rolesOf(turn?.body)).toContain("assistant");
