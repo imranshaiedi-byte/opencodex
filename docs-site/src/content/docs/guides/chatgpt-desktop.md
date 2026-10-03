@@ -40,6 +40,9 @@ Restore leaves the config flag as configured. Set `chatgptDesktop.appServerShim`
 to `false` or remove it to disable future explicit shim launches. Normal launches
 from Dock or Spotlight do not apply the shim automatically.
 
+If ChatGPT is not installed (no `com.openai.codex` bundle is found), `restore`
+only removes the launcher: it cannot relaunch anything and exits with an error.
+
 ## Rewrite boundary
 
 Only `account/rateLimits/updated` notifications and responses whose top-level
@@ -71,10 +74,22 @@ bundled binary of the discovered bundle; if that bundle has no app-server binary
 Before writing the launcher, `launch` also checks that the bundle and its
 app-server binary are owned by you or root, are not writable by group or others,
 and pass strict code-signature verification under OpenAI's team ID
-(`2DC432GLL2`). A bundle that fails any of these is refused, so a copy placed by
-another account cannot be made to run inside your session. The launcher file is
+(`2DC432GLL2`). A bundle that fails any of these checks is refused, including
+one owned by another account. The launcher file is
 written to a temporary file and renamed into place; an existing symbolic link at
 that path is replaced, not followed.
+
+`restore` applies the same ownership, permissions, and signature checks to the
+bundle and its main app executable before quitting or opening it. It works with
+the experimental flag off and without a bundled app-server binary. If trust
+verification or relaunch fails, the existing launcher is kept for recovery.
+
+Both commands also check the folders containing the bundle up to the filesystem
+root. Folders owned by another account, symbolic links, and ordinary group- or
+world-writable parents are refused. Root-owned administrator-group installation
+folders and trusted sticky folders retain their normal permissions behavior.
+These are ownership, POSIX-permission, and signature checks; native ACL and
+volume ownership-policy behavior has not been verified.
 
 This integration installs no certificate, network listener, PAC, or background
 watcher. It does not log the app's messages or environment. Status reports whether
@@ -82,9 +97,13 @@ the running ChatGPT bundle process carries the expected launcher override.
 
 ## Failure behavior and known limits
 
-A failed precondition or a failed self-test runs the original binary with untouched stdout.
+When the platform is not macOS, the OpenCodex runtime is missing, or the filter
+self-test fails, the launcher runs the original binary with untouched stdout. A
+missing bundled app-server binary is the exception: there is nothing to fall back
+to, so the launcher exits with an error (see below).
 A filter that passes the self-test and then dies mid-session closes the pipe.
-Expected (not yet validated against the bundled app-server): the server gets SIGPIPE or a write error and Desktop respawns it through the same launcher.
+What the bundled app-server does after that has not been verified; it may get
+SIGPIPE or a write error and be respawned by Desktop through the same launcher.
 The filter's passthrough mode limits this to an exit/crash case: a rewrite exception
 passes its line through, and an unexpected rewrite-machinery failure switches the
 remaining stream to raw bytes.

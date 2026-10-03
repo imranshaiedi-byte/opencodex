@@ -63,6 +63,34 @@ compare and before taking a snapshot. Droid has no writer lock, so a competing
 settings file can still appear after this check and before the write.
 No Droid file is written by detection or on the proxy request path.
 
+### Droid reasoning defaults
+
+The Droid page stores a sparse model-to-effort map in its owned model rows through
+`extraHeaders.x-opencodex-droid-default-effort`. There is no separate proxy-wide
+default. The single-client status projects the owned defaults and the current
+export roster's declared effort choices into `droidReasoning`. Defaults use the
+same path and competing-settings checks as status, including pre-resolved paths;
+an ambiguous legacy model ID or managed endpoint suppresses the projected map.
+
+Preview and apply accept optional `droidReasoningDefaults`. Omission preserves
+compatible owned defaults; an empty map clears them. A supplied map is validated against the
+same roster used to build the contribution, and the contribution participates in
+the preview fingerprint and frozen mutation input. Refresh preserves defaults only
+while the exact namespaced selector remains in the roster and its current effort
+list includes the saved value. Unsupported defaults are omitted from status and
+removed from owned rows on refresh. Provider, model, and
+combo alias names are mutable selectors rather than stable identities, so renaming
+one removes the old managed row and its default; the replacement row starts without
+a default. Refresh and Save / review changes omit the map unless the user has edited it, so an
+unsupported saved value does not block unrelated refresh. Removing models uses the
+ordinary removal preview. Disable and restore remove or restore the rows and their
+defaults as one owned value.
+
+The request preference is interpreted after initial Chat route selection and before
+concrete dispatch under the
+[inbound effort contract](../data-planes/inbound-compat.md#droid-request-defaults).
+It never authenticates a client or changes admission policy.
+
 ## Cursor installed capability reads
 
 `src/integrations/cursor-effort-table.ts` reads the installed agent bundle through one regular-file
@@ -478,6 +506,12 @@ not an object reports `invalid`, and a file containing any `//` or block comment
 `skipped_comments`, because re-serializing JSONC would drop those comments. The management
 response carries that status and the dashboard shows it; the role TOML write described in
 [subagents](../subagents.md#per-role-model-pins) is not rolled back by a skipped mirror.
+The loader binds validation and reading to one file descriptor and rejects a path whose
+directory entry no longer identifies that opened regular file. Device and inode comparisons use
+bigint stats to preserve exact identities. On POSIX, `O_NOFOLLOW` rejects
+symlinks at open and `O_NONBLOCK` lets the regular-file check reject a FIFO without waiting
+for a writer. Windows omits those POSIX flags and retains the descriptor/path identity checks;
+those checks do not claim POSIX no-follow open semantics.
 An explicit `null` in any of those three places counts as not an object. A file that exists but
 cannot be read lists as `unreadable`, so the role table still loads, and a save reports
 `write_failed` for the mirror.
@@ -548,3 +582,5 @@ complete ownership, exact Cline paths and result fingerprints before either nati
 Native pair writes replace the named directory entries without following final symlinks. A symlink
 present at validation is refused, and one exchanged into place during a mutation is refused rather
 than redirecting OpenCodex's write outside Cline's settings directory.
+
+Routed `ocx claude` launches apply opt-in `claudeCode.subagentModelForce` via independent user-wins defaults for `CLAUDE_CODE_SUBAGENT_MODEL` and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. Native launches add neither; plain Claude and persistent settings remain unchanged. Claude Code 2.1.257+ implements force, excluding forks and inherit-model skills; main and small-fast models remain separate.

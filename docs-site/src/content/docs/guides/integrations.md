@@ -568,7 +568,8 @@ press Save:
 - The same value is written to `codex.agents.<role>.model` in `~/.omo/omo.jsonc`, which
   LazyCodex 5.1.1 and later reads. If that file does not exist it is not created. If it contains
   comments it is left untouched, because saving would remove them; the tab says so, and you can
-  set the value there by hand.
+  set the value there by hand. Symlinks and non-regular files are rejected; on macOS and Linux,
+  a FIFO is rejected without waiting for a writer. A skipped mirror does not undo the role-file save.
 
 Nothing happens until you press Save; syncing or restarting opencodex never changes a role file.
 New Codex sessions pick up the change. The same controls exist on the command line:
@@ -649,6 +650,32 @@ Run Droid once to create `~/.factory`, then explicitly enable this integration w
 Chat Completions endpoint. Choose a row from Droid's `/model` picker. Disable
 removes the managed rows; Undo restores the exact saved file. Other settings and
 custom models remain yours.
+
+Open **Integrations → Factory Droid** (`/#integrations/droid`) to set a reasoning
+default for each connected model. Choose from the model's supported efforts,
+review the changes, then confirm. **No default** clears that model's draft setting;
+use **Save / review changes** and confirm to apply the removal.
+Models without a declared effort list show that no default is available.
+
+The default applies only when Droid omits an effort from its request. An explicit
+request effort takes precedence over this default; existing OpenCodex pins and
+caps still apply. Droid may continue to display **Dynamic** even when OpenCodex
+applies the configured default. Requests without the Droid default header are
+unaffected; the header is a request preference, not proof of client identity.
+For combos and routing policies, each concrete target checks the preference
+against its own effort list, so an incompatible first target does not remove it
+from a compatible fallback.
+
+A saved default that the routed model no longer supports is ignored for requests.
+If the connected model's declared effort list no longer includes the saved value,
+it is omitted from the panel's defaults and removed from the managed row on refresh.
+Reviewing without editing lets OpenCodex preserve the remaining supported defaults.
+
+Refresh preserves defaults while the exact `provider/model` selector remains
+connected and declares the saved effort. Renaming a provider, model, or combo alias replaces that managed row
+and clears its default; choose a default for the renamed row again. Disable
+removes the defaults with the managed model rows, and Undo restores the saved
+rows and their defaults together.
 
 Models whose IDs or display names contain `,` or `]` are skipped because the
 managed selector cannot address them safely; export and managed settings show

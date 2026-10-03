@@ -3,6 +3,8 @@ import { canonicalizeReasoningEfforts } from "../../reasoning-effort";
 import type { OcxConfig } from "../../types";
 import type { ConfigFormat } from "../../integrations/serialize";
 
+export const DROID_DEFAULT_EFFORT_HEADER = "x-opencodex-droid-default-effort";
+
 /**
  * One entry opencodex owns inside a client's config: the JSON path to it and
  * the value we put there.
@@ -182,7 +184,11 @@ export interface ExportContext {
    * admission from `apiKey` to the `x-opencodex-api-key` header.
    */
   config?: OcxConfig;
+  droidReasoningDefaults?: DroidReasoningDefaults;
 }
+
+/** Namespaced model selector to one of that model's declared reasoning efforts. */
+export type DroidReasoningDefaults = Record<string, string>;
 
 export type ExportClientId =
   | "opencode"
